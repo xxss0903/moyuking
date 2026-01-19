@@ -21,22 +21,13 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false
+      sandbox: false,
+      webviewTag: true // 允许在 index.html 中使用 <webview>
     }
   });
 
-  // 加载抖音网页版
-  mainWindow.loadURL('https://www.douyin.com/').then(() => {
-    // 在页面里注入我们的鼠标事件监听脚本
-    mainWindow.webContents.executeJavaScript(
-      require('fs').readFileSync(path.join(__dirname, 'inject.js'), 'utf-8')
-    );
-  });
-
-  // 可选：设置一个桌面浏览器 UA，防止被识别为特殊环境
-  mainWindow.webContents.setUserAgent(
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-  );
+  // 加载本地 HTML：包含自定义 toolbar + 下方的抖音 webview
+  mainWindow.loadFile(path.join(__dirname, 'index.html'));
 
   mainWindow.on('closed', () => {
     mainWindow = null;
