@@ -15,7 +15,8 @@ function createWindow() {
     frame: false,
     transparent: false,
     alwaysOnTop: true,
-    skipTaskbar: false,
+    // 不在系统任务栏显示图标，配合全局快捷键和鼠标滑入显示
+    skipTaskbar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
