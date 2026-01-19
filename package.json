@@ -1,0 +1,16 @@
+{
+  "name": "pindouyin-electron",
+  "version": "1.0.0",
+  "description": "一个用于播放抖音网页的极简 Electron 应用",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^32.1.0"
+  }
+}
+
+
