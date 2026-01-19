@@ -1,7 +1,7 @@
 {
-  "name": "pindouyin-electron",
+  "name": "moyu-king",
   "version": "1.0.0",
-  "description": "一个用于播放抖音网页的极简 Electron 应用",
+  "description": "摸鱼王 - 支持多种摸鱼方式的悬浮窗应用（抖音、小说等）",
   "main": "main.js",
   "scripts": {
     "start": "electron ."
