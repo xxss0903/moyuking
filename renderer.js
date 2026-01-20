@@ -338,6 +338,50 @@ async function showSystemSettings() {
     });
     settingsList.appendChild(hideDelayItem);
 
+    // 鼠标进入/离开解锁时间窗口设置
+    const enterLeaveWindowItem = document.createElement('div');
+    enterLeaveWindowItem.className = 'setting-item';
+    enterLeaveWindowItem.innerHTML = `
+      <div class="setting-label">
+        <span class="setting-label-text">进入/离开时间窗口</span>
+      </div>
+      <div class="setting-description">鼠标进入/离开解锁的时间窗口（毫秒），在此时间内需要达到指定次数</div>
+      <div class="setting-control" style="margin-top: 8px;">
+        <input type="number" class="input-control" id="enter-leave-window-input" min="1000" max="10000" step="500" value="${config.mouseEnterLeaveWindow || 3000}">
+        <span style="color: #666; font-size: 12px;">毫秒</span>
+      </div>
+    `;
+    const enterLeaveWindowInput = enterLeaveWindowItem.querySelector('#enter-leave-window-input');
+    enterLeaveWindowInput.addEventListener('change', async (e) => {
+      const value = parseInt(e.target.value) || 3000;
+      await window.electronAPI.setConfig('mouseEnterLeaveWindow', value);
+      // 通知主进程重新加载配置
+      await window.electronAPI.reloadUnlockConfig();
+    });
+    settingsList.appendChild(enterLeaveWindowItem);
+
+    // 鼠标进入/离开解锁次数阈值设置
+    const enterLeaveThresholdItem = document.createElement('div');
+    enterLeaveThresholdItem.className = 'setting-item';
+    enterLeaveThresholdItem.innerHTML = `
+      <div class="setting-label">
+        <span class="setting-label-text">进入/离开次数阈值</span>
+      </div>
+      <div class="setting-description">在时间窗口内需要达到的鼠标进入/离开次数</div>
+      <div class="setting-control" style="margin-top: 8px;">
+        <input type="number" class="input-control" id="enter-leave-threshold-input" min="2" max="10" step="1" value="${config.mouseEnterLeaveThreshold || 3}">
+        <span style="color: #666; font-size: 12px;">次</span>
+      </div>
+    `;
+    const enterLeaveThresholdInput = enterLeaveThresholdItem.querySelector('#enter-leave-threshold-input');
+    enterLeaveThresholdInput.addEventListener('change', async (e) => {
+      const value = parseInt(e.target.value) || 3;
+      await window.electronAPI.setConfig('mouseEnterLeaveThreshold', value);
+      // 通知主进程重新加载配置
+      await window.electronAPI.reloadUnlockConfig();
+    });
+    settingsList.appendChild(enterLeaveThresholdItem);
+
     panel.classList.add('show');
   } catch (error) {
     console.error('Failed to load settings:', error);

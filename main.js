@@ -31,6 +31,12 @@ let MIDDLE_BUTTON_HOLD_TIME = 1000; // 从配置文件加载
 // 窗口固定状态（从配置文件加载）
 let isWindowPinned = false;
 
+// 鼠标进入/离开次数检测（可配置时间窗口和次数阈值）
+let mouseEnterLeaveCount = 0; // 进入/离开次数
+let mouseEnterLeaveTimer = null; // 时间窗口计时器
+let MOUSE_ENTER_LEAVE_WINDOW = 3000; // 时间窗口（从配置文件加载）
+let MOUSE_ENTER_LEAVE_THRESHOLD = 3; // 次数阈值（从配置文件加载）
+
 // 加载所有可用模块
 function loadModules() {
   const modulesDir = path.join(__dirname, 'modules');
@@ -307,14 +313,57 @@ function startMouseMonitor() {
     if (inside && !isMouseInsideWindow) {
       // 鼠标刚进入应用所在矩形区域
       isMouseInsideWindow = true;
+      mouseEnterLeaveCount++;
+      
       console.log(`\n[Mouse Monitor] ========== Mouse Entered Window Area ==========`);
       console.log(`[Mouse Monitor] Window position: (${bounds.x}, ${bounds.y})`);
       console.log(`[Mouse Monitor] Window size: ${bounds.width} x ${bounds.height}`);
       console.log(`[Mouse Monitor] Mouse position: (${cursorPoint.x}, ${cursorPoint.y})`);
-      console.log(`[Mouse Monitor] Ready for middle button press and hold`);
+      console.log(`[Mouse Monitor] Enter/Leave count: ${mouseEnterLeaveCount}/${MOUSE_ENTER_LEAVE_THRESHOLD}`);
       console.log(`[Mouse Monitor] ================================================\n`);
       
-      // 确保覆盖窗口可见且可以接收鼠标事件
+      // 如果这是第一次进入，启动3秒计时器
+      if (mouseEnterLeaveCount === 1) {
+        // 清除之前的计时器
+        if (mouseEnterLeaveTimer) {
+          clearTimeout(mouseEnterLeaveTimer);
+        }
+        
+        mouseEnterLeaveTimer = setTimeout(() => {
+          console.log(`[Mouse Monitor] 3 second window expired, resetting count`);
+          mouseEnterLeaveCount = 0;
+          mouseEnterLeaveTimer = null;
+        }, MOUSE_ENTER_LEAVE_WINDOW);
+      }
+      
+      // 检查是否达到3次进入/离开
+      if (mouseEnterLeaveCount >= MOUSE_ENTER_LEAVE_THRESHOLD) {
+        console.log(`\n[Unlock Success] ========== Mouse Enter/Leave Pattern Detected ==========`);
+        console.log(`[Unlock Success] Detected ${mouseEnterLeaveCount} enter/leave events in 3 seconds`);
+        console.log(`[Unlock Success] Showing main window`);
+        console.log(`[Unlock Success] ===================================================\n`);
+        
+        // 重置计数器
+        mouseEnterLeaveCount = 0;
+        if (mouseEnterLeaveTimer) {
+          clearTimeout(mouseEnterLeaveTimer);
+          mouseEnterLeaveTimer = null;
+        }
+        
+        // 显示主窗口
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+        
+        // 隐藏覆盖窗口
+        if (overlayWindow) {
+          overlayWindow.setIgnoreMouseEvents(true);
+          overlayWindow.hide();
+        }
+      }
+      
+      // 确保覆盖窗口可见且可以接收鼠标事件（用于中键解锁）
       if (overlayWindow) {
         overlayWindow.setIgnoreMouseEvents(false);
         overlayWindow.show();
@@ -322,9 +371,53 @@ function startMouseMonitor() {
     } else if (!inside && isMouseInsideWindow) {
       // 鼠标离开应用矩形区域
       isMouseInsideWindow = false;
+      mouseEnterLeaveCount++;
+      
       console.log(`\n[Mouse Monitor] ========== Mouse Left Window Area ==========`);
       console.log(`[Mouse Monitor] Mouse position: (${cursorPoint.x}, ${cursorPoint.y})`);
       console.log(`[Mouse Monitor] Window pinned: ${isWindowPinned}`);
+      console.log(`[Mouse Monitor] Enter/Leave count: ${mouseEnterLeaveCount}/${MOUSE_ENTER_LEAVE_THRESHOLD}`);
+      
+      // 如果这是第一次离开，启动3秒计时器（如果还没启动）
+      if (mouseEnterLeaveCount === 1) {
+        // 清除之前的计时器
+        if (mouseEnterLeaveTimer) {
+          clearTimeout(mouseEnterLeaveTimer);
+        }
+        
+        mouseEnterLeaveTimer = setTimeout(() => {
+          console.log(`[Mouse Monitor] 3 second window expired, resetting count`);
+          mouseEnterLeaveCount = 0;
+          mouseEnterLeaveTimer = null;
+        }, MOUSE_ENTER_LEAVE_WINDOW);
+      }
+      
+      // 检查是否达到3次进入/离开
+      if (mouseEnterLeaveCount >= MOUSE_ENTER_LEAVE_THRESHOLD) {
+        console.log(`\n[Unlock Success] ========== Mouse Enter/Leave Pattern Detected ==========`);
+        console.log(`[Unlock Success] Detected ${mouseEnterLeaveCount} enter/leave events in 3 seconds`);
+        console.log(`[Unlock Success] Showing main window`);
+        console.log(`[Unlock Success] ===================================================\n`);
+        
+        // 重置计数器
+        mouseEnterLeaveCount = 0;
+        if (mouseEnterLeaveTimer) {
+          clearTimeout(mouseEnterLeaveTimer);
+          mouseEnterLeaveTimer = null;
+        }
+        
+        // 显示主窗口
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+        
+        // 隐藏覆盖窗口
+        if (overlayWindow) {
+          overlayWindow.setIgnoreMouseEvents(true);
+          overlayWindow.hide();
+        }
+      }
       
       // 重置中键状态
       if (middleButtonPressTimer) {
@@ -339,6 +432,8 @@ function startMouseMonitor() {
         clearTimeout(hideDelayTimer);
         hideDelayTimer = null;
       }
+      
+      // 注意：不重置 mouseEnterLeaveCount，因为离开也算一次事件
       
       // 如果窗口未固定，则延迟隐藏窗口
       if (!isWindowPinned) {
@@ -479,7 +574,24 @@ ipcMain.handle('set-config', (event, key, value) => {
     console.log(`[Config] Default pinned changed, will take effect on next startup`);
   }
   
+  // 如果修改了鼠标进入/离开解锁配置，立即重新加载
+  if (key === 'mouseEnterLeaveWindow' || key === 'mouseEnterLeaveThreshold') {
+    const config = loadConfig();
+    MOUSE_ENTER_LEAVE_WINDOW = config.mouseEnterLeaveWindow || 3000;
+    MOUSE_ENTER_LEAVE_THRESHOLD = config.mouseEnterLeaveThreshold || 3;
+    console.log(`[Config] Mouse enter/leave unlock config reloaded: window=${MOUSE_ENTER_LEAVE_WINDOW}ms, threshold=${MOUSE_ENTER_LEAVE_THRESHOLD}`);
+  }
+  
   return true;
+});
+
+// IPC 处理：重新加载解锁配置
+ipcMain.on('reload-unlock-config', () => {
+  const config = loadConfig();
+  MOUSE_ENTER_LEAVE_WINDOW = config.mouseEnterLeaveWindow || 3000;
+  MOUSE_ENTER_LEAVE_THRESHOLD = config.mouseEnterLeaveThreshold || 3;
+  MIDDLE_BUTTON_HOLD_TIME = config.middleButtonHoldTime || 1000;
+  console.log(`[Config] Unlock config reloaded: enter/leave window=${MOUSE_ENTER_LEAVE_WINDOW}ms, threshold=${MOUSE_ENTER_LEAVE_THRESHOLD}, middle button=${MIDDLE_BUTTON_HOLD_TIME}ms`);
 });
 
 // IPC 处理：应用信息

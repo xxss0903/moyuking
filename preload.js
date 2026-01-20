@@ -23,7 +23,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 应用信息
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
-  checkForUpdates: () => ipcRenderer.invoke('check-for-updates')
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  
+  // 重新加载解锁配置
+  reloadUnlockConfig: () => ipcRenderer.send('reload-unlock-config')
 });
 
 

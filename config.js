@@ -28,7 +28,11 @@ const defaultConfig = {
   defaultPinned: false, // 默认是否固定窗口
   
   // 界面位置相关
-  windowPosition: 'top-right' // 窗口位置：'top-left', 'top-right', 'bottom-left', 'bottom-right'
+  windowPosition: 'top-right', // 窗口位置：'top-left', 'top-right', 'bottom-left', 'bottom-right'
+  
+  // 鼠标进入/离开解锁相关
+  mouseEnterLeaveWindow: 3000, // 鼠标进入/离开的时间窗口（毫秒），默认3秒
+  mouseEnterLeaveThreshold: 3 // 鼠标进入/离开的次数阈值，默认3次
 };
 
 // 读取配置
