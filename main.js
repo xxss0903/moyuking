@@ -146,7 +146,7 @@ function createWindow() {
     // 开发环境：加载 Vite 开发服务器
     mainWindow.loadURL('http://localhost:5173');
     // 打开开发者工具（可选）
-    // mainWindow.webContents.openDevTools();
+    mainWindow.webContents.openDevTools();
   } else {
     // 生产环境：加载构建后的文件
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
@@ -177,8 +177,18 @@ function createWindow() {
 
   // 处理webview的HTML5全屏请求（如抖音视频全屏）
   mainWindow.webContents.on('did-attach-webview', (event, webContents) => {
-    console.log(`[Webview] Webview attached, setting up fullscreen handlers`);
+    console.log(`[Webview] Webview attached, setting up handlers`);
     webviewContents.push(webContents);
+    
+    // 监听webview加载完成
+    webContents.on('did-finish-load', () => {
+      console.log(`[Webview] Webview finished loading: ${webContents.getURL()}`);
+    });
+    
+    // 监听webview DOM 准备完成
+    webContents.on('dom-ready', () => {
+      console.log(`[Webview] Webview DOM ready: ${webContents.getURL()}`);
+    });
     
     // 监听webview进入HTML5全屏（如视频全屏）
     webContents.on('enter-html-full-screen', () => {
@@ -775,20 +785,127 @@ ipcMain.on('navigate-webview', (event, url) => {
 // IPC 处理：在webview中执行脚本
 ipcMain.handle('execute-webview-script', async (event, script) => {
   console.log(`[Webview] ========== Executing script in webview ==========`);
+  console.log(`[Webview] Script preview (first 200 chars):`, script.substring(0, 200));
   console.log(`[Webview] Webview count: ${webviewContents.length}`);
   
   if (webviewContents.length > 0) {
     const webContents = webviewContents[0];
-    console.log(`[Webview] Webview URL: ${webContents.getURL()}`);
-    console.log(`[Webview] Webview is loading: ${webContents.isLoading()}`);
+    const url = webContents.getURL();
+    const isLoading = webContents.isLoading();
+    
+    console.log(`[Webview] Webview URL: ${url}`);
+    console.log(`[Webview] Webview is loading: ${isLoading}`);
     console.log(`[Webview] Script length: ${script.length} characters`);
+    
+    // 如果 webview 还在加载，等待加载完成
+    if (isLoading) {
+      console.log(`[Webview] Webview is still loading, waiting for dom-ready...`);
+      await new Promise((resolve) => {
+        const onDomReady = () => {
+          webContents.removeListener('dom-ready', onDomReady);
+          console.log(`[Webview] Webview DOM ready, proceeding with script execution`);
+          resolve();
+        };
+        webContents.once('dom-ready', onDomReady);
+        // 超时保护
+        setTimeout(() => {
+          webContents.removeListener('dom-ready', onDomReady);
+          console.log(`[Webview] Timeout waiting for dom-ready, proceeding anyway`);
+          resolve();
+        }, 5000);
+      });
+    }
     
     try {
       console.log(`[Webview] Executing JavaScript script...`);
-      const result = await webContents.executeJavaScript(script);
+      
+      // 检查脚本是否已经是一个立即执行函数
+      const trimmedScript = script.trim();
+      const isIIFE = trimmedScript.startsWith('(function()') || trimmedScript.startsWith('function()');
+      
+      let finalScript = script;
+      
+      if (!isIIFE) {
+        // 简单脚本，包装成函数并返回成功状态
+        finalScript = `(function() { try { ${script}; return { success: true }; } catch(e) { return { success: false, error: e.message }; } })();`;
+      } else {
+        // 已经是立即执行函数，在外层添加错误处理
+        // 如果函数内部没有 try-catch，添加外层保护
+        if (!script.includes('try {')) {
+          // 提取函数体，添加错误处理
+          finalScript = `
+            (function() {
+              try {
+                return ${script};
+              } catch (error) {
+                console.error('[Script Error]', error);
+                return { success: false, error: error.message || String(error) };
+              }
+            })();
+          `;
+        }
+      }
+      
+      console.log(`[Webview] Final script length: ${finalScript.length} characters`);
+      
+      // 使用 executeJavaScript 执行脚本
+      // 第二个参数 userGesture 设为 true 允许用户手势相关的操作
+      const result = await webContents.executeJavaScript(finalScript, true);
       console.log(`[Webview] Script executed successfully`);
-      console.log(`[Webview] Result:`, result);
+      console.log(`[Webview] Result type:`, typeof result);
+      
+      // 安全地序列化结果
+      try {
+        const resultStr = JSON.stringify(result, (key, value) => {
+          // 过滤掉不可序列化的值
+          if (typeof value === 'function') return '[Function]';
+          if (value instanceof Error) return value.message;
+          if (value instanceof HTMLElement) return '[HTMLElement]';
+          if (value instanceof Node) return '[Node]';
+          return value;
+        });
+        console.log(`[Webview] Result:`, resultStr);
+      } catch (e) {
+        console.log(`[Webview] Result cannot be serialized:`, e.message);
+      }
+      
       console.log(`[Webview] ===========================================`);
+      
+      // 如果结果已经是对象且包含 success 字段，清理并返回
+      if (result && typeof result === 'object' && result !== null && 'success' in result) {
+        // 确保返回的对象是可序列化的，只保留基本类型
+        const cleanResult = {};
+        for (const key in result) {
+          const value = result[key];
+          if (value === null || value === undefined) {
+            cleanResult[key] = value;
+          } else if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+            cleanResult[key] = value;
+          } else if (Array.isArray(value)) {
+            // 处理数组
+            cleanResult[key] = value.map(item => {
+              if (typeof item === 'object' && item !== null) {
+                const cleanItem = {};
+                for (const k in item) {
+                  const v = item[k];
+                  if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+                    cleanItem[k] = v;
+                  } else {
+                    cleanItem[k] = String(v);
+                  }
+                }
+                return cleanItem;
+              }
+              return typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean' ? item : String(item);
+            });
+          } else {
+            cleanResult[key] = String(value);
+          }
+        }
+        return cleanResult;
+      }
+      
+      // 否则包装结果
       return { success: true, result: result };
     } catch (error) {
       console.error(`[Webview] Error executing script:`, error);

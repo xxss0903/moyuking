@@ -12,6 +12,7 @@ module.exports = {
         id="douyin-webview"
         src="https://www.douyin.com/"
         allowpopups
+        webpreferences="nodeIntegration=no,contextIsolation=yes,javascript=yes"
         style="width: 100%; height: 100%; display: flex;"
       ></webview>
     `;
