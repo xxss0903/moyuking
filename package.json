@@ -4,13 +4,49 @@
   "description": "摸鱼王 - 支持多种摸鱼方式的悬浮窗应用（抖音、小说等）",
   "main": "main.js",
   "scripts": {
+    "dev": "vite",
+    "dev:electron": "vite & electron .",
+    "build": "vite build",
+    "build:electron": "npm run build && electron-builder",
     "start": "electron .",
-    "start:win": "start.bat"
+    "start:win": "start.bat",
+    "preview": "vite preview"
   },
   "author": "",
   "license": "MIT",
+  "dependencies": {
+    "vue": "^3.4.0"
+  },
   "devDependencies": {
-    "electron": "^32.1.0"
+    "electron": "^32.1.0",
+    "vite": "^5.0.0",
+    "@vitejs/plugin-vue": "^5.0.0",
+    "vite-plugin-electron": "^0.28.0",
+    "electron-builder": "^24.0.0"
+  },
+  "build": {
+    "appId": "com.moyu-king.app",
+    "productName": "摸鱼王",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "main.js",
+      "preload.js",
+      "overlay-preload.js",
+      "config.js",
+      "modules/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }
 

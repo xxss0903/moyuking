@@ -139,7 +139,18 @@ function createWindow() {
     }
   });
 
-  mainWindow.loadFile(path.join(__dirname, 'index.html'));
+  // 根据环境加载不同的文件
+  const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+  
+  if (isDev) {
+    // 开发环境：加载 Vite 开发服务器
+    mainWindow.loadURL('http://localhost:5173');
+    // 打开开发者工具（可选）
+    // mainWindow.webContents.openDevTools();
+  } else {
+    // 生产环境：加载构建后的文件
+    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+  }
 
   // 保存窗口位置
   mainWindow.on('moved', () => {
