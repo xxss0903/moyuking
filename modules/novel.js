@@ -32,7 +32,7 @@ module.exports = {
           </button>
           
           <div id="novel-webview-container" style="display: none; width: 100%; height: 600px; border: 1px solid #ddd; border-radius: 4px; overflow: hidden;">
-            <webview id="novel-webview" style="width: 100%; height: 100%;" allowpopups></webview>
+            <webview id="novel-webview" style="width: 100%; height: 100%; display: flex;" allowpopups></webview>
           </div>
           
           <div id="novel-placeholder" style="text-align: center; color: #999; padding: 40px 0;">

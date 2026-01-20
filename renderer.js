@@ -25,6 +25,7 @@ function setupToolbar() {
   const settingsBtn = document.getElementById('settings-btn');
   const moduleBtn = document.getElementById('module-btn');
   const pinBtn = document.getElementById('pin-btn');
+  const fullscreenBtn = document.getElementById('fullscreen-btn');
 
   if (closeBtn) {
     closeBtn.addEventListener('click', () => {
@@ -71,6 +72,25 @@ function setupToolbar() {
       updatePinButton(newState);
     });
   }
+
+  if (fullscreenBtn) {
+    fullscreenBtn.addEventListener('click', () => {
+      console.log('Fullscreen button clicked');
+      if (window.electronAPI && window.electronAPI.triggerWebviewFullscreen) {
+        window.electronAPI.triggerWebviewFullscreen();
+      }
+    });
+  }
+
+  const devtoolsBtn = document.getElementById('devtools-btn');
+  if (devtoolsBtn) {
+    devtoolsBtn.addEventListener('click', () => {
+      console.log('Devtools button clicked');
+      if (window.electronAPI && window.electronAPI.toggleWebviewDevtools) {
+        window.electronAPI.toggleWebviewDevtools();
+      }
+    });
+  }
 }
 
 // 加载固定状态
@@ -96,6 +116,7 @@ function updatePinButton(isPinned) {
     }
   }
 }
+
 
 // 加载可用模块
 async function loadAvailableModules() {

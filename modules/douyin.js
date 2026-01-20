@@ -12,7 +12,7 @@ module.exports = {
         id="douyin-webview"
         src="https://www.douyin.com/"
         allowpopups
-        style="width: 100%; height: 100%;"
+        style="width: 100%; height: 100%; display: flex;"
       ></webview>
     `;
   },
@@ -25,6 +25,11 @@ module.exports = {
         if (webview) {
           const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
           webview.setAttribute('useragent', ua);
+          
+          // 确保webview支持滚动和全屏
+          webview.addEventListener('dom-ready', () => {
+            console.log('[Douyin] Webview ready, scrolling and fullscreen enabled');
+          });
         }
       })();
     `;

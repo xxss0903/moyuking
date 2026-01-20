@@ -18,6 +18,7 @@ if (process.platform === 'win32') {
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
 let overlayWindow = null; // 透明覆盖窗口，用于监听鼠标中键
+const webviewContents = []; // 存储所有webview的引用
 let mouseMonitorTimer = null;
 let isMouseInsideWindow = false;
 let hideDelayTimer = null; // 延迟隐藏定时器
@@ -162,6 +163,130 @@ function createWindow() {
       overlayWindow.close();
     }
   });
+
+  // 处理webview的HTML5全屏请求（如抖音视频全屏）
+  mainWindow.webContents.on('did-attach-webview', (event, webContents) => {
+    console.log(`[Webview] Webview attached, setting up fullscreen handlers`);
+    webviewContents.push(webContents);
+    
+    // 监听webview进入HTML5全屏（如视频全屏）
+    webContents.on('enter-html-full-screen', () => {
+      console.log(`[Webview] Entered HTML5 fullscreen (e.g., video fullscreen)`);
+      if (mainWindow) {
+        // 隐藏工具栏，让webview全屏显示
+        mainWindow.webContents.send('webview-enter-fullscreen');
+        // 将应用窗口设置为全屏，以支持全屏滚动
+        mainWindow.setFullScreen(true);
+      }
+    });
+
+    // 监听webview退出HTML5全屏
+    webContents.on('leave-html-full-screen', () => {
+      console.log(`[Webview] Left HTML5 fullscreen`);
+      if (mainWindow) {
+        mainWindow.webContents.send('webview-leave-fullscreen');
+        mainWindow.setFullScreen(false);
+      }
+    });
+
+    // 监听webview关闭，从数组中移除
+    webContents.on('destroyed', () => {
+      const index = webviewContents.indexOf(webContents);
+      if (index > -1) {
+        webviewContents.splice(index, 1);
+      }
+    });
+  });
+
+  // 全局函数：触发webview全屏
+  global.triggerWebviewFullscreen = () => {
+    console.log(`[Webview] Triggering fullscreen from toolbar button`);
+    // 使用存储的webview引用
+    if (webviewContents.length === 0) {
+      console.log(`[Webview] No webview found`);
+      return false;
+    }
+    
+    // 使用第一个webview
+    const webContents = webviewContents[0];
+    console.log(`[Webview] Attempting to trigger fullscreen on webview`);
+    
+    // 尝试多种方式触发全屏
+    webContents.executeJavaScript(`
+      (function() {
+        // 方法1: 查找视频元素并触发全屏
+        const videos = document.querySelectorAll('video');
+        if (videos.length > 0) {
+          const video = videos[0];
+          if (video.requestFullscreen) {
+            video.requestFullscreen().catch(err => console.log('Fullscreen error:', err));
+            return true;
+          } else if (video.webkitRequestFullscreen) {
+            video.webkitRequestFullscreen();
+            return true;
+          } else if (video.mozRequestFullScreen) {
+            video.mozRequestFullScreen();
+            return true;
+          } else if (video.msRequestFullscreen) {
+            video.msRequestFullscreen();
+            return true;
+          }
+        }
+        
+        // 方法2: 查找全屏按钮并点击
+        const fullscreenButtons = document.querySelectorAll('[class*="fullscreen"], [class*="Fullscreen"], button[aria-label*="全屏"], button[aria-label*="fullscreen"]');
+        if (fullscreenButtons.length > 0) {
+          fullscreenButtons[0].click();
+          return true;
+        }
+        
+        // 方法3: 尝试对整个文档触发全屏
+        if (document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(err => console.log('Fullscreen error:', err));
+          return true;
+        } else if (document.documentElement.webkitRequestFullscreen) {
+          document.documentElement.webkitRequestFullscreen();
+          return true;
+        }
+        
+        return false;
+      })();
+    `).then((result) => {
+      if (result) {
+        console.log(`[Webview] Fullscreen triggered successfully`);
+      } else {
+        console.log(`[Webview] Could not trigger fullscreen, no suitable element found`);
+      }
+    }).catch((err) => {
+      console.log(`[Webview] Error triggering fullscreen:`, err);
+    });
+    
+    return true;
+  };
+
+  // 全局函数：切换webview开发者工具
+  global.toggleWebviewDevtools = () => {
+    console.log(`[Webview] Toggling devtools from toolbar button`);
+    
+    // 使用存储的webview引用
+    if (webviewContents.length === 0) {
+      console.log(`[Webview] No webview found to toggle devtools`);
+      return false;
+    }
+    
+    // 使用第一个webview
+    const webContents = webviewContents[0];
+    
+    if (webContents.isDevToolsOpened()) {
+      console.log(`[Webview] Closing devtools`);
+      webContents.closeDevTools();
+    } else {
+      console.log(`[Webview] Opening devtools`);
+      webContents.openDevTools();
+    }
+    
+    return true;
+  };
 
   // 从配置文件读取启动显示设置
   const showOnStartup = config.showWindowOnStartup !== false; // 默认 true
@@ -606,6 +731,25 @@ ipcMain.handle('check-for-updates', async () => {
   // 这里可以添加实际的更新检查逻辑
   return { hasUpdate: false, latestVersion: packageJson.version };
 });
+
+// IPC 处理：触发webview全屏
+ipcMain.on('trigger-webview-fullscreen', () => {
+  if (global.triggerWebviewFullscreen) {
+    global.triggerWebviewFullscreen();
+  } else {
+    console.log(`[Webview] triggerWebviewFullscreen function not available`);
+  }
+});
+
+// IPC 处理：切换webview开发者工具
+ipcMain.on('toggle-webview-devtools', () => {
+  if (global.toggleWebviewDevtools) {
+    global.toggleWebviewDevtools();
+  } else {
+    console.log(`[Webview] toggleWebviewDevtools function not available`);
+  }
+});
+
 
 // IPC 处理：鼠标中键按下
 ipcMain.on('middle-button-pressed', () => {

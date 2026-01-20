@@ -90,6 +90,18 @@
         overflow: hidden;
       }
 
+      /* 全屏模式下隐藏工具栏 */
+      body:fullscreen #toolbar,
+      html:fullscreen #toolbar {
+        display: none;
+      }
+
+      body:fullscreen #module-container,
+      html:fullscreen #module-container {
+        top: 0;
+        height: 100%;
+      }
+
       /* 模块选择面板样式 */
       #module-panel {
         position: fixed;
@@ -359,6 +371,8 @@
         <div class="toolbar-btn" id="module-btn" title="选择摸鱼方式">🎮</div>
         <div class="toolbar-btn" id="settings-btn" title="系统设置">⚙</div>
         <div class="toolbar-btn" id="pin-btn" title="固定窗口">📌</div>
+        <div class="toolbar-btn" id="fullscreen-btn" title="视频全屏">⛶</div>
+        <div class="toolbar-btn" id="devtools-btn" title="开发者工具">🔧</div>
         <div class="toolbar-btn" id="min-btn" title="最小化">—</div>
         <div class="toolbar-btn close" id="close-btn" title="关闭">×</div>
       </div>

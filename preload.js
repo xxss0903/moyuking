@@ -26,7 +26,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   
   // 重新加载解锁配置
-  reloadUnlockConfig: () => ipcRenderer.send('reload-unlock-config')
+  reloadUnlockConfig: () => ipcRenderer.send('reload-unlock-config'),
+  
+  // 触发webview全屏
+  triggerWebviewFullscreen: () => ipcRenderer.send('trigger-webview-fullscreen'),
+  
+  // 切换webview开发者工具
+  toggleWebviewDevtools: () => ipcRenderer.send('toggle-webview-devtools')
 });
 
 
