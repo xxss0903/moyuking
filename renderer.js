@@ -23,6 +23,7 @@ function setupToolbar() {
   const closeBtn = document.getElementById('close-btn');
   const minBtn = document.getElementById('min-btn');
   const settingsBtn = document.getElementById('settings-btn');
+  const pinBtn = document.getElementById('pin-btn');
 
   if (closeBtn) {
     closeBtn.addEventListener('click', () => {
@@ -44,6 +45,42 @@ function setupToolbar() {
     settingsBtn.addEventListener('click', () => {
       showSettingsPanel();
     });
+  }
+
+  if (pinBtn) {
+    // 加载固定状态
+    loadPinState();
+    
+    pinBtn.addEventListener('click', async () => {
+      const currentState = await window.electronAPI.getPinState();
+      const newState = !currentState;
+      await window.electronAPI.setPinState(newState);
+      updatePinButton(newState);
+    });
+  }
+}
+
+// 加载固定状态
+async function loadPinState() {
+  try {
+    const isPinned = await window.electronAPI.getPinState();
+    updatePinButton(isPinned);
+  } catch (error) {
+    console.error('Failed to load pin state:', error);
+  }
+}
+
+// 更新固定按钮显示
+function updatePinButton(isPinned) {
+  const pinBtn = document.getElementById('pin-btn');
+  if (pinBtn) {
+    if (isPinned) {
+      pinBtn.classList.add('pinned');
+      pinBtn.title = '取消固定窗口';
+    } else {
+      pinBtn.classList.remove('pinned');
+      pinBtn.title = '固定窗口';
+    }
   }
 }
 

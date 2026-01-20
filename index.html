@@ -70,6 +70,15 @@
         background: rgba(255, 0, 0, 0.6);
       }
 
+      .toolbar-btn.pinned {
+        background: rgba(255, 193, 7, 0.3);
+        color: #ffc107;
+      }
+
+      .toolbar-btn.pinned:hover {
+        background: rgba(255, 193, 7, 0.5);
+      }
+
       #module-container {
         position: absolute;
         top: 36px;
@@ -208,6 +217,7 @@
       </div>
       <div id="toolbar-right">
         <div class="toolbar-btn" id="settings-btn" title="设置">⚙</div>
+        <div class="toolbar-btn" id="pin-btn" title="固定窗口">📌</div>
         <div class="toolbar-btn" id="min-btn" title="最小化">—</div>
         <div class="toolbar-btn close" id="close-btn" title="关闭">×</div>
       </div>

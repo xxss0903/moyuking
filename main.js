@@ -24,7 +24,10 @@ let isMouseInsideWindow = false;
 let middleButtonPressed = false;
 let middleButtonPressTime = null;
 let middleButtonPressTimer = null;
-const MIDDLE_BUTTON_HOLD_TIME = 1000; // 需要长按1秒
+let MIDDLE_BUTTON_HOLD_TIME = 1000; // 从配置文件加载
+
+// 窗口固定状态（从配置文件加载）
+let isWindowPinned = false;
 
 // 加载所有可用模块
 function loadModules() {
@@ -55,6 +58,12 @@ let availableModules = loadModules();
 
 function createWindow() {
   const config = loadConfig();
+  
+  // 从配置文件加载所有设置
+  isWindowPinned = config.isWindowPinned || false;
+  MIDDLE_BUTTON_HOLD_TIME = config.middleButtonHoldTime || 1000;
+  console.log(`[Config] Window pinned state loaded: ${isWindowPinned}`);
+  console.log(`[Config] Middle button hold time loaded: ${MIDDLE_BUTTON_HOLD_TIME}ms`);
   
   mainWindow = new BrowserWindow({
     width: config.windowBounds?.width || 480,
@@ -101,20 +110,31 @@ function createWindow() {
     }
   });
 
-  // 启动时先显示窗口3秒，方便用户看到窗口位置，然后隐藏
-  mainWindow.show();
-  mainWindow.focus();
-  console.log(`[Window] Window shown for 3 seconds to indicate position`);
-  console.log(`[Window] Window will hide automatically after 3 seconds`);
+  // 从配置文件读取启动显示设置
+  const showOnStartup = config.showWindowOnStartup !== false; // 默认 true
+  const displayDuration = config.startupDisplayDuration || 3000;
   
-  setTimeout(() => {
-    if (mainWindow) {
-      mainWindow.hide();
-      console.log(`[Window] Window hidden, ready for middle button unlock`);
-    }
-    // 创建透明覆盖窗口用于监听鼠标中键
+  if (showOnStartup) {
+    // 启动时先显示窗口，方便用户看到窗口位置，然后隐藏
+    mainWindow.show();
+    mainWindow.focus();
+    console.log(`[Window] Window shown for ${displayDuration}ms to indicate position`);
+    console.log(`[Window] Window will hide automatically after ${displayDuration}ms`);
+    
+    setTimeout(() => {
+      if (mainWindow) {
+        mainWindow.hide();
+        console.log(`[Window] Window hidden, ready for middle button unlock`);
+      }
+      // 创建透明覆盖窗口用于监听鼠标中键
+      createOverlayWindow();
+    }, displayDuration);
+  } else {
+    // 不显示启动窗口，直接隐藏
+    mainWindow.hide();
+    console.log(`[Window] Window hidden on startup (showWindowOnStartup: false)`);
     createOverlayWindow();
-  }, 3000);
+  }
 
   startMouseMonitor();
 }
@@ -253,12 +273,11 @@ function startMouseMonitor() {
         overlayWindow.show();
       }
     } else if (!inside && isMouseInsideWindow) {
-      // 鼠标离开应用矩形区域，重置状态并隐藏主窗口
+      // 鼠标离开应用矩形区域
       isMouseInsideWindow = false;
       console.log(`\n[Mouse Monitor] ========== Mouse Left Window Area ==========`);
       console.log(`[Mouse Monitor] Mouse position: (${cursorPoint.x}, ${cursorPoint.y})`);
-      console.log(`[Mouse Monitor] Hiding window, resetting state`);
-      console.log(`[Mouse Monitor] =============================================\n`);
+      console.log(`[Mouse Monitor] Window pinned: ${isWindowPinned}`);
       
       // 重置中键状态
       if (middleButtonPressTimer) {
@@ -268,15 +287,22 @@ function startMouseMonitor() {
       middleButtonPressed = false;
       middleButtonPressTime = null;
       
-      if (mainWindow) {
-        mainWindow.hide();
+      // 如果窗口未固定，则隐藏窗口
+      if (!isWindowPinned) {
+        console.log(`[Mouse Monitor] Hiding window (not pinned)`);
+        if (mainWindow) {
+          mainWindow.hide();
+        }
+        
+        // 隐藏覆盖窗口
+        if (overlayWindow) {
+          overlayWindow.setIgnoreMouseEvents(true);
+          overlayWindow.hide();
+        }
+      } else {
+        console.log(`[Mouse Monitor] Window is pinned, keeping visible`);
       }
-      
-      // 隐藏覆盖窗口
-      if (overlayWindow) {
-        overlayWindow.setIgnoreMouseEvents(true);
-        overlayWindow.hide();
-      }
+      console.log(`[Mouse Monitor] =============================================\n`);
     }
   }, 150);
 }
@@ -332,6 +358,20 @@ ipcMain.handle('load-module', (event, moduleId) => {
     initScript: module.getInitScript ? module.getInitScript() : '',
     destroyScript: module.getDestroyScript ? module.getDestroyScript() : ''
   };
+});
+
+// IPC 处理：固定窗口状态
+ipcMain.handle('get-pin-state', () => {
+  return isWindowPinned;
+});
+
+ipcMain.handle('set-pin-state', (event, pinned) => {
+  isWindowPinned = pinned;
+  // 保存到配置文件
+  updateConfig({ isWindowPinned: pinned, autoHideOnMouseLeave: !pinned });
+  console.log(`[Window Pin] Window pin state changed: ${pinned ? 'PINNED' : 'UNPINNED'}`);
+  console.log(`[Config] Pin state saved to config file`);
+  return true;
 });
 
 // IPC 处理：鼠标中键按下
