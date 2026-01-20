@@ -1,4 +1,23 @@
 <template>
+  <!--
+    渲染架构说明（Vue 版本）
+    --------------------------------------
+    - 整个 Electron 主窗口的前端 UI 由本组件接管，旧的 renderer.js 已废弃并删除。
+    - 结构：
+      - Toolbar：顶部工具栏（拖动、关闭、设置、当前模块名称点击打开模块选择面板等）。
+      - ModuleControlBar：根据当前模块（抖音 / 小说）展示对应的控制按钮。
+      - #module-container：实际承载各摸鱼模块的 DOM 容器（例如抖音 webview）。
+      - ModulePanel：模块选择面板（选择抖音 / 小说等）。
+      - SettingsPanel：系统设置面板（全部设置项已改为 Vue 实现）。
+    - 模块加载方式：
+      - 通过 useModules composable 向主进程请求模块描述（HTML + 初始化脚本）。
+      - 将模块的 HTML 字符串直接写入 #module-container（innerHTML），再执行模块的 initScript。
+      - 抖音等网页内容通过 <webview> 标签承载，相关逻辑在 modules/*.js 中定义。
+    - 启动时序：
+      - Electron 主进程先加载 moyu_config.json，初始化所有配置。
+      - 本 Vue 应用挂载完成后，延迟 3 秒再调用 loadAvailableModules / loadCurrentModule，
+        由 watch(currentModule) 触发实际模块内容加载，避免过早访问网页链接。
+  -->
   <div id="app">
     <Toolbar 
       :current-module-name="currentModuleName"
