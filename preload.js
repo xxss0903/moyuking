@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAllConfig: () => ipcRenderer.invoke('get-all-config'),
   getConfig: (key) => ipcRenderer.invoke('get-config', key),
   setConfig: (key, value) => ipcRenderer.invoke('set-config', key, value),
+  readConfigFile: () => ipcRenderer.invoke('read-config-file'),
+  getConfigFilePath: () => ipcRenderer.invoke('get-config-file-path'),
   
   // 应用信息
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
@@ -36,7 +38,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 模块控制操作
   navigateWebview: (url) => ipcRenderer.send('navigate-webview', url),
-  executeWebviewScript: (script) => ipcRenderer.invoke('execute-webview-script', script)
+  executeWebviewScript: (script) => ipcRenderer.invoke('execute-webview-script', script),
+
+  // 重启应用
+  restartApp: () => ipcRenderer.send('restart-app')
 });
 
 

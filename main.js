@@ -1,7 +1,7 @@
 const { app, BrowserWindow, globalShortcut, ipcMain, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { loadConfig, updateConfig, getConfig, setConfig } = require('./config');
+const { loadConfig, updateConfig, getConfig, setConfig, readConfigFile, getConfigFilePath } = require('./config');
 const packageJson = require('./package.json');
 
 // 设置控制台输出编码为 UTF-8（解决中文乱码问题）
@@ -101,15 +101,30 @@ function setWindowPosition(position) {
   console.log(`[Window] Position set to ${position}: (${x}, ${y})`);
 }
 
-function createWindow() {
+// 初始化配置（在应用启动时调用）
+function initializeConfig() {
+  console.log(`[Config] ========== Initializing configuration ==========`);
   const config = loadConfig();
   
   // 从配置文件加载所有设置
   isWindowPinned = config.defaultPinned || config.isWindowPinned || false;
   MIDDLE_BUTTON_HOLD_TIME = config.middleButtonHoldTime || 1000;
-  console.log(`[Config] Window pinned state loaded: ${isWindowPinned}`);
-  console.log(`[Config] Middle button hold time loaded: ${MIDDLE_BUTTON_HOLD_TIME}ms`);
+  MOUSE_ENTER_LEAVE_WINDOW = config.mouseEnterLeaveWindow || 3000;
+  MOUSE_ENTER_LEAVE_THRESHOLD = config.mouseEnterLeaveThreshold || 5;
+  
+  console.log(`[Config] Window pinned state: ${isWindowPinned}`);
+  console.log(`[Config] Middle button hold time: ${MIDDLE_BUTTON_HOLD_TIME}ms`);
   console.log(`[Config] Hide delay on mouse leave: ${config.hideDelayOnMouseLeave || 0}ms`);
+  console.log(`[Config] Mouse enter/leave window: ${MOUSE_ENTER_LEAVE_WINDOW}ms`);
+  console.log(`[Config] Mouse enter/leave threshold: ${MOUSE_ENTER_LEAVE_THRESHOLD}`);
+  console.log(`[Config] ================================================`);
+  
+  return config;
+}
+
+function createWindow() {
+  // 加载配置（用于窗口创建时的配置）
+  const config = loadConfig();
   
   // 如果配置了窗口位置且没有保存的位置，设置窗口位置
   if (config.windowPosition && !config.windowBounds) {
@@ -405,6 +420,12 @@ function createOverlayWindow() {
 }
 
 app.whenReady().then(() => {
+  // 先初始化配置，确保所有配置都已加载
+  console.log(`[App] Application ready, initializing configuration...`);
+  initializeConfig();
+  console.log(`[App] Configuration initialized, creating window...`);
+  
+  // 配置加载完成后再创建窗口
   createWindow();
 
   // 注册全局快捷键：手动显示/隐藏主窗口（绕过手势，用于自用调试）
@@ -665,6 +686,16 @@ ipcMain.handle('get-config', (event, key) => {
   return getConfig(key);
 });
 
+// IPC 处理：读取配置文件原始内容
+ipcMain.handle('read-config-file', () => {
+  return readConfigFile();
+});
+
+// IPC 处理：获取配置文件路径
+ipcMain.handle('get-config-file-path', () => {
+  return getConfigFilePath();
+});
+
 ipcMain.handle('set-config', (event, key, value) => {
   setConfig(key, value);
   console.log(`[Config] Config updated: ${key} = ${value}`);
@@ -685,6 +716,7 @@ ipcMain.handle('set-config', (event, key, value) => {
     MOUSE_ENTER_LEAVE_WINDOW = config.mouseEnterLeaveWindow || 3000;
     MOUSE_ENTER_LEAVE_THRESHOLD = config.mouseEnterLeaveThreshold || 5;
     console.log(`[Config] Mouse enter/leave unlock config reloaded: window=${MOUSE_ENTER_LEAVE_WINDOW}ms, threshold=${MOUSE_ENTER_LEAVE_THRESHOLD}`);
+    // 注意：mouseEnterLeaveThreshold 的修改需要重启应用才能完全生效
   }
   
   return true;
@@ -697,6 +729,13 @@ ipcMain.on('reload-unlock-config', () => {
   MOUSE_ENTER_LEAVE_THRESHOLD = config.mouseEnterLeaveThreshold || 5;
   MIDDLE_BUTTON_HOLD_TIME = config.middleButtonHoldTime || 1000;
   console.log(`[Config] Unlock config reloaded: enter/leave window=${MOUSE_ENTER_LEAVE_WINDOW}ms, threshold=${MOUSE_ENTER_LEAVE_THRESHOLD}, middle button=${MIDDLE_BUTTON_HOLD_TIME}ms`);
+});
+
+// IPC 处理：重启应用
+ipcMain.on('restart-app', () => {
+  console.log(`[App] Restarting application...`);
+  app.relaunch();
+  app.exit(0);
 });
 
 // IPC 处理：应用信息

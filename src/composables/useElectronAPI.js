@@ -27,6 +27,8 @@ export function useElectronAPI() {
     getAllConfig: () => electronAPI.getAllConfig(),
     getConfig: (key) => electronAPI.getConfig(key),
     setConfig: (key, value) => electronAPI.setConfig(key, value),
+    readConfigFile: () => electronAPI.readConfigFile(),
+    getConfigFilePath: () => electronAPI.getConfigFilePath(),
 
     // 应用信息
     getAppVersion: () => electronAPI.getAppVersion(),
@@ -43,7 +45,10 @@ export function useElectronAPI() {
 
     // 模块控制操作
     navigateWebview: (url) => electronAPI.navigateWebview(url),
-    executeWebviewScript: (script) => electronAPI.executeWebviewScript(script)
+    executeWebviewScript: (script) => electronAPI.executeWebviewScript(script),
+
+    // 重启应用
+    restartApp: () => electronAPI.restartApp()
   };
 }
 

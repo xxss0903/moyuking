@@ -108,6 +108,26 @@
             <span style="color: #666; font-size: 12px;">次</span>
           </div>
         </div>
+
+        <!-- 配置文件信息 -->
+        <div class="setting-item">
+          <div class="setting-label">
+            <span class="setting-label-text">配置文件</span>
+          </div>
+          <div class="setting-description">查看配置文件路径和内容</div>
+          <div class="setting-control" style="margin-top: 8px; flex-direction: column; align-items: flex-start; gap: 8px;">
+            <div style="font-size: 12px; color: #666; word-break: break-all;">
+              路径: {{ configFilePath || '加载中...' }}
+            </div>
+            <button 
+              class="view-config-btn" 
+              @click="viewConfigFile"
+              :disabled="viewingConfig"
+            >
+              {{ viewingConfig ? '查看中...' : '查看配置文件内容' }}
+            </button>
+          </div>
+        </div>
       </div>
       <button id="settings-close" @click="close">确定</button>
     </div>
@@ -134,12 +154,26 @@ const config = ref({
   defaultPinned: false,
   hideDelayOnMouseLeave: 0,
   mouseEnterLeaveWindow: 3000,
-  mouseEnterLeaveThreshold: 3
+  mouseEnterLeaveThreshold: 5
 });
 const checkingUpdate = ref(false);
 const updateButtonText = ref('检查更新');
+const thresholdChanged = ref(false); // 跟踪是否修改了阈值
+const initialThreshold = ref(5); // 记录初始阈值
+const configFilePath = ref(''); // 配置文件路径
+const viewingConfig = ref(false); // 是否正在查看配置
 
-const close = () => {
+const close = async () => {
+  // 如果修改了阈值，提示重启
+  if (thresholdChanged.value) {
+    const shouldRestart = confirm('您已修改了"进入/离开次数阈值"设置，需要重启应用才能生效。\n\n是否现在重启应用？');
+    if (shouldRestart) {
+      if (electronAPI && electronAPI.restartApp) {
+        electronAPI.restartApp();
+      }
+      return; // 不关闭面板，等待重启
+    }
+  }
   emit('update:visible', false);
 };
 
@@ -152,9 +186,16 @@ const loadConfig = async () => {
       defaultPinned: allConfig.defaultPinned || false,
       hideDelayOnMouseLeave: allConfig.hideDelayOnMouseLeave || 0,
       mouseEnterLeaveWindow: allConfig.mouseEnterLeaveWindow || 3000,
-      mouseEnterLeaveThreshold: allConfig.mouseEnterLeaveThreshold || 3
+      mouseEnterLeaveThreshold: allConfig.mouseEnterLeaveThreshold || 5
     };
+    initialThreshold.value = config.value.mouseEnterLeaveThreshold;
+    thresholdChanged.value = false; // 重置标记
     version.value = await electronAPI.getAppVersion();
+    
+    // 加载配置文件路径
+    if (electronAPI.getConfigFilePath) {
+      configFilePath.value = await electronAPI.getConfigFilePath();
+    }
   } catch (error) {
     console.error('Failed to load config:', error);
   }
@@ -181,12 +222,16 @@ const updateEnterLeaveWindow = async (e) => {
 };
 
 const updateEnterLeaveThreshold = async (e) => {
-  const value = parseInt(e.target.value) || 3;
+  const value = parseInt(e.target.value) || 5;
   config.value.mouseEnterLeaveThreshold = value;
   await updateConfig('mouseEnterLeaveThreshold', value);
-  if (electronAPI) {
-    await electronAPI.reloadUnlockConfig();
+  // 标记阈值已修改
+  if (value !== initialThreshold.value) {
+    thresholdChanged.value = true;
+  } else {
+    thresholdChanged.value = false;
   }
+  // 注意：不调用 reloadUnlockConfig，因为需要重启才能完全生效
 };
 
 const checkUpdate = async () => {
@@ -208,6 +253,66 @@ const checkUpdate = async () => {
       checkingUpdate.value = false;
       updateButtonText.value = '检查更新';
     }, 2000);
+  }
+};
+
+const viewConfigFile = async () => {
+  if (!electronAPI || viewingConfig.value) return;
+  
+  viewingConfig.value = true;
+  
+  try {
+    const result = await electronAPI.readConfigFile();
+    if (result && result.success) {
+      // 在新窗口中显示配置文件内容
+      const configWindow = window.open('', '_blank', 'width=800,height=600');
+      if (configWindow) {
+        configWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="UTF-8">
+              <title>配置文件内容 - moyu_config.json</title>
+              <style>
+                body {
+                  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                  padding: 20px;
+                  background: #1e1e1e;
+                  color: #d4d4d4;
+                }
+                pre {
+                  background: #252526;
+                  padding: 15px;
+                  border-radius: 5px;
+                  overflow-x: auto;
+                  white-space: pre-wrap;
+                  word-wrap: break-word;
+                }
+                .path {
+                  color: #569cd6;
+                  margin-bottom: 10px;
+                  font-size: 12px;
+                }
+                .error {
+                  color: #f48771;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="path">文件路径: ${result.path}</div>
+              <pre>${result.content}</pre>
+            </body>
+          </html>
+        `);
+        configWindow.document.close();
+      }
+    } else {
+      alert(`读取配置文件失败: ${result?.error || '未知错误'}`);
+    }
+  } catch (error) {
+    alert(`读取配置文件失败: ${error.message}`);
+  } finally {
+    viewingConfig.value = false;
   }
 };
 
@@ -366,6 +471,25 @@ onMounted(() => {
 
 #settings-close:hover {
   background: #0056b3;
+}
+
+.view-config-btn {
+  padding: 6px 12px;
+  background: #17a2b8;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.view-config-btn:hover {
+  background: #138496;
+}
+
+.view-config-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
 }
 </style>
 

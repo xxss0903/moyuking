@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { app } = require('electron');
 
-const CONFIG_FILE = path.join(app.getPath('userData'), 'config.json');
+const CONFIG_FILE = path.join(app.getPath('userData'), 'moyu_config.json');
 
 // 默认配置
 const defaultConfig = {
@@ -32,7 +32,7 @@ const defaultConfig = {
   
   // 鼠标进入/离开解锁相关
   mouseEnterLeaveWindow: 3000, // 鼠标进入/离开的时间窗口（毫秒），默认3秒
-  mouseEnterLeaveThreshold: 5 // 鼠标进入/离开的次数阈值，默认5次
+  mouseEnterLeaveThreshold: 3 // 鼠标进入/离开的次数阈值，默认5次
 };
 
 // 读取配置
@@ -88,12 +88,45 @@ function setConfig(key, value) {
   return config;
 }
 
+// 读取配置文件原始内容（返回 JSON 字符串）
+function readConfigFile() {
+  try {
+    if (fs.existsSync(CONFIG_FILE)) {
+      const data = fs.readFileSync(CONFIG_FILE, 'utf-8');
+      return {
+        success: true,
+        content: data,
+        path: CONFIG_FILE
+      };
+    } else {
+      return {
+        success: false,
+        error: 'Config file does not exist',
+        path: CONFIG_FILE
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+      path: CONFIG_FILE
+    };
+  }
+}
+
+// 获取配置文件路径
+function getConfigFilePath() {
+  return CONFIG_FILE;
+}
+
 module.exports = {
   loadConfig,
   saveConfig,
   updateConfig,
   getConfig,
   setConfig,
+  readConfigFile,
+  getConfigFilePath,
   defaultConfig
 };
 
