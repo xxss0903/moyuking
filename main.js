@@ -3,10 +3,28 @@ const path = require('path');
 const fs = require('fs');
 const { loadConfig, updateConfig } = require('./config');
 
+// 设置控制台输出编码为 UTF-8（解决中文乱码问题）
+if (process.platform === 'win32') {
+  try {
+    // Windows 系统设置控制台编码
+    process.stdout.setDefaultEncoding('utf8');
+    process.stderr.setDefaultEncoding('utf8');
+  } catch (e) {
+    // 忽略设置失败
+  }
+}
+
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
+let overlayWindow = null; // 透明覆盖窗口，用于监听鼠标中键
 let mouseMonitorTimer = null;
 let isMouseInsideWindow = false;
+
+// 鼠标中键长按检测
+let middleButtonPressed = false;
+let middleButtonPressTime = null;
+let middleButtonPressTimer = null;
+const MIDDLE_BUTTON_HOLD_TIME = 1000; // 需要长按1秒
 
 // 加载所有可用模块
 function loadModules() {
@@ -24,7 +42,7 @@ function loadModules() {
             modules[module.id] = module;
           }
         } catch (error) {
-          console.error(`加载模块 ${file} 失败:`, error);
+          console.error(`[Module Load] Failed to load module ${file}:`, error);
         }
       }
     });
@@ -77,18 +95,108 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+    // 关闭覆盖窗口
+    if (overlayWindow) {
+      overlayWindow.close();
+    }
   });
 
+  // 启动时先显示窗口3秒，方便用户看到窗口位置，然后隐藏
+  mainWindow.show();
+  mainWindow.focus();
+  console.log(`[Window] Window shown for 3 seconds to indicate position`);
+  console.log(`[Window] Window will hide automatically after 3 seconds`);
+  
+  setTimeout(() => {
+    if (mainWindow) {
+      mainWindow.hide();
+      console.log(`[Window] Window hidden, ready for middle button unlock`);
+    }
+    // 创建透明覆盖窗口用于监听鼠标中键
+    createOverlayWindow();
+  }, 3000);
+
   startMouseMonitor();
+}
+
+// 创建透明覆盖窗口，用于监听鼠标中键事件
+function createOverlayWindow() {
+  if (!mainWindow) return;
+
+  const bounds = mainWindow.getBounds();
+  
+  overlayWindow = new BrowserWindow({
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    focusable: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'overlay-preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: false
+    }
+  });
+
+  // 加载一个简单的 HTML 页面来监听鼠标事件
+  overlayWindow.loadURL(`data:text/html;charset=utf-8,
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body {
+          margin: 0;
+          padding: 0;
+          width: 100%;
+          height: 100%;
+          background: transparent;
+          cursor: default;
+        }
+      </style>
+    </head>
+    <body></body>
+    </html>
+  `);
+
+  overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+
+  // 覆盖窗口跟随主窗口位置
+  mainWindow.on('moved', () => {
+    if (mainWindow && overlayWindow) {
+      const bounds = mainWindow.getBounds();
+      overlayWindow.setBounds(bounds);
+    }
+  });
+
+  mainWindow.on('resized', () => {
+    if (mainWindow && overlayWindow) {
+      const bounds = mainWindow.getBounds();
+      overlayWindow.setBounds(bounds);
+    }
+  });
+
+  overlayWindow.on('closed', () => {
+    overlayWindow = null;
+  });
 }
 
 app.whenReady().then(() => {
   createWindow();
 
-  // 注册全局快捷键
+  // 注册全局快捷键：手动显示/隐藏主窗口（绕过手势，用于自用调试）
   globalShortcut.register('CommandOrControl+Shift+M', () => {
     if (!mainWindow) {
       createWindow();
+      return;
+    }
+
+    if (mainWindow.isVisible()) {
+      mainWindow.hide();
     } else {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
@@ -109,7 +217,8 @@ app.on('window-all-closed', () => {
   }
 });
 
-// 鼠标监控
+
+// 鼠标监控：检测鼠标是否在窗口区域内
 function startMouseMonitor() {
   if (mouseMonitorTimer) {
     clearInterval(mouseMonitorTimer);
@@ -129,12 +238,45 @@ function startMouseMonitor() {
       cursorPoint.y <= bounds.y + bounds.height;
 
     if (inside && !isMouseInsideWindow) {
+      // 鼠标刚进入应用所在矩形区域
       isMouseInsideWindow = true;
-      mainWindow.show();
-      mainWindow.focus();
+      console.log(`\n[Mouse Monitor] ========== Mouse Entered Window Area ==========`);
+      console.log(`[Mouse Monitor] Window position: (${bounds.x}, ${bounds.y})`);
+      console.log(`[Mouse Monitor] Window size: ${bounds.width} x ${bounds.height}`);
+      console.log(`[Mouse Monitor] Mouse position: (${cursorPoint.x}, ${cursorPoint.y})`);
+      console.log(`[Mouse Monitor] Ready for middle button press and hold`);
+      console.log(`[Mouse Monitor] ================================================\n`);
+      
+      // 确保覆盖窗口可见且可以接收鼠标事件
+      if (overlayWindow) {
+        overlayWindow.setIgnoreMouseEvents(false);
+        overlayWindow.show();
+      }
     } else if (!inside && isMouseInsideWindow) {
+      // 鼠标离开应用矩形区域，重置状态并隐藏主窗口
       isMouseInsideWindow = false;
-      mainWindow.hide();
+      console.log(`\n[Mouse Monitor] ========== Mouse Left Window Area ==========`);
+      console.log(`[Mouse Monitor] Mouse position: (${cursorPoint.x}, ${cursorPoint.y})`);
+      console.log(`[Mouse Monitor] Hiding window, resetting state`);
+      console.log(`[Mouse Monitor] =============================================\n`);
+      
+      // 重置中键状态
+      if (middleButtonPressTimer) {
+        clearTimeout(middleButtonPressTimer);
+        middleButtonPressTimer = null;
+      }
+      middleButtonPressed = false;
+      middleButtonPressTime = null;
+      
+      if (mainWindow) {
+        mainWindow.hide();
+      }
+      
+      // 隐藏覆盖窗口
+      if (overlayWindow) {
+        overlayWindow.setIgnoreMouseEvents(true);
+        overlayWindow.hide();
+      }
     }
   }, 150);
 }
@@ -182,7 +324,7 @@ ipcMain.handle('set-current-module', (event, moduleId) => {
 ipcMain.handle('load-module', (event, moduleId) => {
   const module = availableModules[moduleId];
   if (!module) {
-    throw new Error(`模块 ${moduleId} 不存在`);
+    throw new Error(`Module ${moduleId} does not exist`);
   }
   
   return {
@@ -190,4 +332,61 @@ ipcMain.handle('load-module', (event, moduleId) => {
     initScript: module.getInitScript ? module.getInitScript() : '',
     destroyScript: module.getDestroyScript ? module.getDestroyScript() : ''
   };
+});
+
+// IPC 处理：鼠标中键按下
+ipcMain.on('middle-button-pressed', () => {
+  if (!isMouseInsideWindow) return;
+  
+  middleButtonPressed = true;
+  middleButtonPressTime = Date.now();
+  
+  console.log(`[Unlock] Middle button pressed, starting hold timer (${MIDDLE_BUTTON_HOLD_TIME}ms)`);
+  
+  // 清除之前的定时器
+  if (middleButtonPressTimer) {
+    clearTimeout(middleButtonPressTimer);
+  }
+  
+  // 设置长按检测定时器
+  middleButtonPressTimer = setTimeout(() => {
+    if (middleButtonPressed && isMouseInsideWindow) {
+      console.log(`\n[Unlock Success] ========== Middle Button Hold Detected ==========`);
+      console.log(`[Unlock Success] Showing main window`);
+      console.log(`[Unlock Success] ===================================================\n`);
+      
+      // 显示主窗口
+      if (mainWindow) {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+      
+      // 隐藏覆盖窗口
+      if (overlayWindow) {
+        overlayWindow.setIgnoreMouseEvents(true);
+        overlayWindow.hide();
+      }
+      
+      // 重置状态
+      middleButtonPressed = false;
+      middleButtonPressTime = null;
+    }
+  }, MIDDLE_BUTTON_HOLD_TIME);
+});
+
+// IPC 处理：鼠标中键释放
+ipcMain.on('middle-button-released', () => {
+  if (!middleButtonPressed) return;
+  
+  const holdTime = Date.now() - (middleButtonPressTime || Date.now());
+  console.log(`[Unlock] Middle button released, hold time: ${holdTime}ms (required: ${MIDDLE_BUTTON_HOLD_TIME}ms)`);
+  
+  middleButtonPressed = false;
+  middleButtonPressTime = null;
+  
+  // 清除定时器
+  if (middleButtonPressTimer) {
+    clearTimeout(middleButtonPressTimer);
+    middleButtonPressTimer = null;
+  }
 });

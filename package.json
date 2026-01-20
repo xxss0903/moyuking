@@ -4,7 +4,8 @@
   "description": "摸鱼王 - 支持多种摸鱼方式的悬浮窗应用（抖音、小说等）",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "start:win": "start.bat"
   },
   "author": "",
   "license": "MIT",
