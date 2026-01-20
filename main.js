@@ -41,6 +41,7 @@ let MOUSE_ENTER_LEAVE_THRESHOLD = 5; // 次数阈值（从配置文件加载）
 // 隐藏窗口时自动暂停视频配置
 let AUTO_PAUSE_ON_HIDE = true; // 从配置文件加载
 let resumeVideoTimer = null; // 窗口显示后延迟恢复视频的计时器
+let videoPausedByAutoHide = false; // 记录是否由自动隐藏逻辑暂停了视频
 
 // 加载所有可用模块
 function loadModules() {
@@ -207,23 +208,30 @@ function createWindow() {
     if (AUTO_PAUSE_ON_HIDE) {
       console.log(`[Window] Auto pause on hide is enabled, attempting to pause video...`);
       pauseWebviewVideo();
+      // 标记是由自动隐藏逻辑暂停的
+      videoPausedByAutoHide = true;
+    } else {
+      videoPausedByAutoHide = false;
     }
   });
 
   mainWindow.on('show', () => {
     console.log(`[Window] Main window shown`);
-    if (AUTO_PAUSE_ON_HIDE) {
-      console.log(`[Window] Auto pause on hide is enabled, will try to resume video after 1000ms...`);
+    // 只有在之前是由自动隐藏逻辑暂停过视频时，才尝试自动恢复播放
+    if (AUTO_PAUSE_ON_HIDE && videoPausedByAutoHide) {
+      console.log(`[Window] Auto pause on hide is enabled and video was paused by auto hide, will try to resume video after 500ms...`);
 
       // 避免多次 show 累积计时器
       if (resumeVideoTimer) {
         clearTimeout(resumeVideoTimer);
       }
-      resumeVideoTimer = setTimeout(() => {
-        console.log(`[Window] Resuming video after 1000ms delay`);
-        resumeWebviewVideo();
-        resumeVideoTimer = null;
-      }, 1000);
+      // resumeVideoTimer = setTimeout(() => {
+      //   console.log(`[Window] Resuming video after 500ms delay`);
+      //   resumeWebviewVideo();
+      //   resumeVideoTimer = null;
+      //   // 恢复一次后清除标记，避免后续非自动隐藏导致的 show 继续触发
+      //   videoPausedByAutoHide = false;
+      // }, 500);
     }
   });
 
