@@ -225,13 +225,13 @@ function createWindow() {
       if (resumeVideoTimer) {
         clearTimeout(resumeVideoTimer);
       }
-      // resumeVideoTimer = setTimeout(() => {
-      //   console.log(`[Window] Resuming video after 500ms delay`);
-      //   resumeWebviewVideo();
-      //   resumeVideoTimer = null;
-      //   // 恢复一次后清除标记，避免后续非自动隐藏导致的 show 继续触发
-      //   videoPausedByAutoHide = false;
-      // }, 500);
+      resumeVideoTimer = setTimeout(() => {
+        console.log(`[Window] Resuming video after 500ms delay`);
+        resumeWebviewVideo();
+        resumeVideoTimer = null;
+        // 恢复一次后清除标记，避免后续非自动隐藏导致的 show 继续触发
+        videoPausedByAutoHide = false;
+      }, 500);
     }
   });
 
@@ -299,20 +299,33 @@ function createWindow() {
 
           // 方法1: 直接暂停所有 video 元素
           const videos = document.querySelectorAll('video');
+          console.log('[Webview Video] Found video elements count:', videos.length);
           let pausedCount = 0;
-          videos.forEach(v => {
+          videos.forEach((v, idx) => {
+            console.log('[Webview Video] Video[' + idx + '] paused=', v.paused);
             if (!v.paused) {
               v.pause();
               pausedCount++;
+              console.log('[Webview Video] Paused video[' + idx + ']');
             }
           });
+          console.log('[Webview Video] Total paused by direct video.pause():', pausedCount);
 
-          // 方法2: 针对 xgplayer，尝试点击暂停按钮
+          // 方法2: 针对 xgplayer，尝试点击暂停按钮（如果上面没有暂停到）
           if (pausedCount === 0) {
-            const pauseBtn = document.querySelector('.xgplayer-play, .xgplayer-pause, [class*="xgplayer-play"], [class*="xgplayer-pause"]');
+            const selector = '.xgplayer-play, .xgplayer-pause, [class*="xgplayer-play"], [class*="xgplayer-pause"]';
+            const pauseBtn = document.querySelector(selector);
             if (pauseBtn) {
+              console.log('[Webview Video] Found xgplayer toggle button:', {
+                className: pauseBtn.className,
+                tagName: pauseBtn.tagName,
+                ariaLabel: pauseBtn.getAttribute && pauseBtn.getAttribute('aria-label'),
+                text: pauseBtn.innerText && pauseBtn.innerText.trim()
+              });
               pauseBtn.click();
               console.log('[Webview Video] Clicked xgplayer play/pause button');
+            } else {
+              console.log('[Webview Video] No xgplayer toggle button found with selector:', selector);
             }
           }
         } catch (e) {
