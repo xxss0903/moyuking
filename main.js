@@ -32,11 +32,11 @@ let MIDDLE_BUTTON_HOLD_TIME = 1000; // 从配置文件加载
 // 窗口固定状态（从配置文件加载）
 let isWindowPinned = false;
 
-// 鼠标进入/离开次数检测（可配置时间窗口和次数阈值）
-let mouseEnterLeaveCount = 0; // 进入/离开次数
+// 鼠标进入次数检测（可配置时间窗口和次数阈值，只统计进入次数，不统计离开）
+let mouseEnterLeaveCount = 0; // 进入次数（只统计进入，不统计离开）
 let mouseEnterLeaveTimer = null; // 时间窗口计时器
 let MOUSE_ENTER_LEAVE_WINDOW = 3000; // 时间窗口（从配置文件加载）
-let MOUSE_ENTER_LEAVE_THRESHOLD = 3; // 次数阈值（从配置文件加载）
+let MOUSE_ENTER_LEAVE_THRESHOLD = 5; // 次数阈值（从配置文件加载）
 
 // 加载所有可用模块
 function loadModules() {
@@ -465,7 +465,7 @@ function startMouseMonitor() {
       console.log(`[Mouse Monitor] Window position: (${bounds.x}, ${bounds.y})`);
       console.log(`[Mouse Monitor] Window size: ${bounds.width} x ${bounds.height}`);
       console.log(`[Mouse Monitor] Mouse position: (${cursorPoint.x}, ${cursorPoint.y})`);
-      console.log(`[Mouse Monitor] Enter/Leave count: ${mouseEnterLeaveCount}/${MOUSE_ENTER_LEAVE_THRESHOLD}`);
+      console.log(`[Mouse Monitor] Enter count: ${mouseEnterLeaveCount}/${MOUSE_ENTER_LEAVE_THRESHOLD}`);
       console.log(`[Mouse Monitor] ================================================\n`);
       
       // 如果这是第一次进入，启动3秒计时器
@@ -482,10 +482,10 @@ function startMouseMonitor() {
         }, MOUSE_ENTER_LEAVE_WINDOW);
       }
       
-      // 检查是否达到3次进入/离开
+      // 检查是否达到指定次数的进入（只统计进入次数）
       if (mouseEnterLeaveCount >= MOUSE_ENTER_LEAVE_THRESHOLD) {
-        console.log(`\n[Unlock Success] ========== Mouse Enter/Leave Pattern Detected ==========`);
-        console.log(`[Unlock Success] Detected ${mouseEnterLeaveCount} enter/leave events in 3 seconds`);
+        console.log(`\n[Unlock Success] ========== Mouse Enter Pattern Detected ==========`);
+        console.log(`[Unlock Success] Detected ${mouseEnterLeaveCount} enter events in ${MOUSE_ENTER_LEAVE_WINDOW}ms`);
         console.log(`[Unlock Success] Showing main window`);
         console.log(`[Unlock Success] ===================================================\n`);
         
@@ -515,55 +515,14 @@ function startMouseMonitor() {
         overlayWindow.show();
       }
     } else if (!inside && isMouseInsideWindow) {
-      // 鼠标离开应用矩形区域
+      // 鼠标离开应用矩形区域（离开不计入统计，只统计进入次数）
       isMouseInsideWindow = false;
-      mouseEnterLeaveCount++;
+      // 注意：不增加计数，只统计进入次数
       
       console.log(`\n[Mouse Monitor] ========== Mouse Left Window Area ==========`);
       console.log(`[Mouse Monitor] Mouse position: (${cursorPoint.x}, ${cursorPoint.y})`);
       console.log(`[Mouse Monitor] Window pinned: ${isWindowPinned}`);
-      console.log(`[Mouse Monitor] Enter/Leave count: ${mouseEnterLeaveCount}/${MOUSE_ENTER_LEAVE_THRESHOLD}`);
-      
-      // 如果这是第一次离开，启动3秒计时器（如果还没启动）
-      if (mouseEnterLeaveCount === 1) {
-        // 清除之前的计时器
-        if (mouseEnterLeaveTimer) {
-          clearTimeout(mouseEnterLeaveTimer);
-        }
-        
-        mouseEnterLeaveTimer = setTimeout(() => {
-          console.log(`[Mouse Monitor] 3 second window expired, resetting count`);
-          mouseEnterLeaveCount = 0;
-          mouseEnterLeaveTimer = null;
-        }, MOUSE_ENTER_LEAVE_WINDOW);
-      }
-      
-      // 检查是否达到3次进入/离开
-      if (mouseEnterLeaveCount >= MOUSE_ENTER_LEAVE_THRESHOLD) {
-        console.log(`\n[Unlock Success] ========== Mouse Enter/Leave Pattern Detected ==========`);
-        console.log(`[Unlock Success] Detected ${mouseEnterLeaveCount} enter/leave events in 3 seconds`);
-        console.log(`[Unlock Success] Showing main window`);
-        console.log(`[Unlock Success] ===================================================\n`);
-        
-        // 重置计数器
-        mouseEnterLeaveCount = 0;
-        if (mouseEnterLeaveTimer) {
-          clearTimeout(mouseEnterLeaveTimer);
-          mouseEnterLeaveTimer = null;
-        }
-        
-        // 显示主窗口
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
-        }
-        
-        // 隐藏覆盖窗口
-        if (overlayWindow) {
-          overlayWindow.setIgnoreMouseEvents(true);
-          overlayWindow.hide();
-        }
-      }
+      console.log(`[Mouse Monitor] Enter count: ${mouseEnterLeaveCount}/${MOUSE_ENTER_LEAVE_THRESHOLD} (only enter events are counted)`);
       
       // 重置中键状态
       if (middleButtonPressTimer) {
@@ -724,7 +683,7 @@ ipcMain.handle('set-config', (event, key, value) => {
   if (key === 'mouseEnterLeaveWindow' || key === 'mouseEnterLeaveThreshold') {
     const config = loadConfig();
     MOUSE_ENTER_LEAVE_WINDOW = config.mouseEnterLeaveWindow || 3000;
-    MOUSE_ENTER_LEAVE_THRESHOLD = config.mouseEnterLeaveThreshold || 3;
+    MOUSE_ENTER_LEAVE_THRESHOLD = config.mouseEnterLeaveThreshold || 5;
     console.log(`[Config] Mouse enter/leave unlock config reloaded: window=${MOUSE_ENTER_LEAVE_WINDOW}ms, threshold=${MOUSE_ENTER_LEAVE_THRESHOLD}`);
   }
   
@@ -735,7 +694,7 @@ ipcMain.handle('set-config', (event, key, value) => {
 ipcMain.on('reload-unlock-config', () => {
   const config = loadConfig();
   MOUSE_ENTER_LEAVE_WINDOW = config.mouseEnterLeaveWindow || 3000;
-  MOUSE_ENTER_LEAVE_THRESHOLD = config.mouseEnterLeaveThreshold || 3;
+  MOUSE_ENTER_LEAVE_THRESHOLD = config.mouseEnterLeaveThreshold || 5;
   MIDDLE_BUTTON_HOLD_TIME = config.middleButtonHoldTime || 1000;
   console.log(`[Config] Unlock config reloaded: enter/leave window=${MOUSE_ENTER_LEAVE_WINDOW}ms, threshold=${MOUSE_ENTER_LEAVE_THRESHOLD}, middle button=${MIDDLE_BUTTON_HOLD_TIME}ms`);
 });

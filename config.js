@@ -32,7 +32,7 @@ const defaultConfig = {
   
   // 鼠标进入/离开解锁相关
   mouseEnterLeaveWindow: 3000, // 鼠标进入/离开的时间窗口（毫秒），默认3秒
-  mouseEnterLeaveThreshold: 3 // 鼠标进入/离开的次数阈值，默认3次
+  mouseEnterLeaveThreshold: 5 // 鼠标进入/离开的次数阈值，默认5次
 };
 
 // 读取配置
