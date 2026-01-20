@@ -75,6 +75,9 @@
               @click="toggleAutoPauseOnHide"
             ></div>
           </div>
+          <div class="setting-note">
+            当前行为：{{ config.autoPauseOnHide ? '隐藏时会暂停视频，重新显示时自动继续播放' : '隐藏时不会自动暂停，视频将持续播放' }}
+          </div>
         </div>
 
         <!-- 隐藏延迟设置（整行：标题 + tip + 输入框） -->
@@ -469,6 +472,12 @@ onMounted(() => {
 
 .setting-help:hover {
   background: #e0e0e0;
+}
+
+.setting-note {
+  font-size: 11px;
+  color: #999;
+  margin-top: 4px;
 }
 
 .setting-control {

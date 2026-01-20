@@ -40,6 +40,7 @@ let MOUSE_ENTER_LEAVE_THRESHOLD = 5; // 次数阈值（从配置文件加载）
 
 // 隐藏窗口时自动暂停视频配置
 let AUTO_PAUSE_ON_HIDE = true; // 从配置文件加载
+let resumeVideoTimer = null; // 窗口显示后延迟恢复视频的计时器
 
 // 加载所有可用模块
 function loadModules() {
@@ -198,6 +199,11 @@ function createWindow() {
   // 当主窗口隐藏/显示时，根据配置自动暂停/恢复视频
   mainWindow.on('hide', () => {
     console.log(`[Window] Main window hidden`);
+    // 隐藏时如有计划中的恢复播放计时器，先清除
+    if (resumeVideoTimer) {
+      clearTimeout(resumeVideoTimer);
+      resumeVideoTimer = null;
+    }
     if (AUTO_PAUSE_ON_HIDE) {
       console.log(`[Window] Auto pause on hide is enabled, attempting to pause video...`);
       pauseWebviewVideo();
@@ -207,8 +213,17 @@ function createWindow() {
   mainWindow.on('show', () => {
     console.log(`[Window] Main window shown`);
     if (AUTO_PAUSE_ON_HIDE) {
-      console.log(`[Window] Auto pause on hide is enabled, attempting to resume video...`);
-      resumeWebviewVideo();
+      console.log(`[Window] Auto pause on hide is enabled, will try to resume video after 1000ms...`);
+
+      // 避免多次 show 累积计时器
+      if (resumeVideoTimer) {
+        clearTimeout(resumeVideoTimer);
+      }
+      resumeVideoTimer = setTimeout(() => {
+        console.log(`[Window] Resuming video after 1000ms delay`);
+        resumeWebviewVideo();
+        resumeVideoTimer = null;
+      }, 1000);
     }
   });
 
@@ -319,7 +334,15 @@ function createWindow() {
         try {
           console.log('[Webview Video] Attempting to resume video...');
 
-          // 方法1: 直接播放第一个 video 元素
+          // 方法1: 优先点击 xgplayer 播放/暂停按钮（与暂停逻辑使用同一类选择器，等于再点一次切换为播放）
+          const toggleBtn = document.querySelector('.xgplayer-play, .xgplayer-pause, [class*="xgplayer-play"], [class*="xgplayer-pause"]');
+          if (toggleBtn) {
+            console.log('[Webview Video] Found xgplayer toggle button, clicking to resume...');
+            toggleBtn.click();
+            return;
+          }
+
+          // 方法2: 直接播放第一个 video 元素
           const videos = document.querySelectorAll('video');
           for (let i = 0; i < videos.length; i++) {
             const v = videos[i];
@@ -329,16 +352,11 @@ function createWindow() {
                 playPromise.catch(err => console.log('[Webview Video] play() error:', err && err.message));
               }
               console.log('[Webview Video] Called play() on video');
-              break;
+              return;
             }
           }
 
-          // 方法2: 如果没有 video 播放，尝试点击播放按钮
-          const playBtn = document.querySelector('.xgplayer-play, [class*="xgplayer-play"]');
-          if (playBtn) {
-            playBtn.click();
-            console.log('[Webview Video] Clicked xgplayer play button');
-          }
+          console.log('[Webview Video] No suitable element found to resume');
         } catch (e) {
           console.log('[Webview Video] Error while resuming video:', e.message);
         }
