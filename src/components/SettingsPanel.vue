@@ -54,18 +54,18 @@
           <div class="setting-label">
             <span class="setting-label-text">隐藏延迟时间</span>
           </div>
-          <div class="setting-description">鼠标移出窗口后延迟隐藏的时间（毫秒），0表示立刻隐藏</div>
+          <div class="setting-description">鼠标移出窗口后延迟隐藏的时间（秒），0表示立刻隐藏</div>
           <div class="setting-control" style="margin-top: 8px;">
             <input 
               type="number" 
               class="input-control" 
               v-model.number="config.hideDelayOnMouseLeave"
               min="0" 
-              max="10000" 
-              step="100"
-              @change="updateConfig('hideDelayOnMouseLeave', $event.target.value)"
+              max="10" 
+              step="0.1"
+              @change="updateHideDelay"
             >
-            <span style="color: #666; font-size: 12px;">毫秒</span>
+            <span style="color: #666; font-size: 12px;">秒</span>
           </div>
         </div>
 
@@ -74,18 +74,18 @@
           <div class="setting-label">
             <span class="setting-label-text">进入/离开时间窗口</span>
           </div>
-          <div class="setting-description">鼠标进入/离开解锁的时间窗口（毫秒），在此时间内需要达到指定次数</div>
+          <div class="setting-description">鼠标进入/离开解锁的时间窗口（秒），在此时间内需要达到指定次数</div>
           <div class="setting-control" style="margin-top: 8px;">
             <input 
               type="number" 
               class="input-control" 
               v-model.number="config.mouseEnterLeaveWindow"
-              min="1000" 
-              max="10000" 
-              step="500"
+              min="1" 
+              max="10" 
+              step="0.5"
               @change="updateEnterLeaveWindow"
             >
-            <span style="color: #666; font-size: 12px;">毫秒</span>
+            <span style="color: #666; font-size: 12px;">秒</span>
           </div>
         </div>
 
@@ -181,11 +181,12 @@ const loadConfig = async () => {
   if (!electronAPI) return;
   try {
     const allConfig = await electronAPI.getAllConfig();
+    // 将毫秒转换为秒显示
     config.value = {
       windowPosition: allConfig.windowPosition || 'top-right',
       defaultPinned: allConfig.defaultPinned || false,
-      hideDelayOnMouseLeave: allConfig.hideDelayOnMouseLeave || 0,
-      mouseEnterLeaveWindow: allConfig.mouseEnterLeaveWindow || 3000,
+      hideDelayOnMouseLeave: (allConfig.hideDelayOnMouseLeave || 0) / 1000, // 毫秒转秒
+      mouseEnterLeaveWindow: (allConfig.mouseEnterLeaveWindow || 3000) / 1000, // 毫秒转秒
       mouseEnterLeaveThreshold: allConfig.mouseEnterLeaveThreshold || 5
     };
     initialThreshold.value = config.value.mouseEnterLeaveThreshold;
@@ -212,10 +213,20 @@ const toggleDefaultPinned = async () => {
   await updateConfig('defaultPinned', newValue);
 };
 
+const updateHideDelay = async (e) => {
+  const valueInSeconds = parseFloat(e.target.value) || 0;
+  config.value.hideDelayOnMouseLeave = valueInSeconds;
+  // 将秒转换为毫秒保存
+  const valueInMs = Math.round(valueInSeconds * 1000);
+  await updateConfig('hideDelayOnMouseLeave', valueInMs);
+};
+
 const updateEnterLeaveWindow = async (e) => {
-  const value = parseInt(e.target.value) || 3000;
-  config.value.mouseEnterLeaveWindow = value;
-  await updateConfig('mouseEnterLeaveWindow', value);
+  const valueInSeconds = parseFloat(e.target.value) || 3;
+  config.value.mouseEnterLeaveWindow = valueInSeconds;
+  // 将秒转换为毫秒保存
+  const valueInMs = Math.round(valueInSeconds * 1000);
+  await updateConfig('mouseEnterLeaveWindow', valueInMs);
   if (electronAPI) {
     await electronAPI.reloadUnlockConfig();
   }

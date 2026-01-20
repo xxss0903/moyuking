@@ -97,14 +97,14 @@ watch(currentModule, async (newModule) => {
 }, { immediate: true });
 
 onMounted(async () => {
-  // 加载模块列表和当前模块
-  await loadAvailableModules();
-  await loadCurrentModule();
-  
-  // 初始加载当前模块内容
-  if (currentModule.value) {
-    await loadModuleContent(currentModule.value);
-  }
+  // 界面和配置加载完成后，延迟 3 秒再开始加载模块内容（如抖音链接）
+  console.log('[App] Vue app mounted, will load modules after 3 seconds...');
+  setTimeout(async () => {
+    console.log('[App] Loading modules after 3-second delay');
+    await loadAvailableModules();
+    await loadCurrentModule();
+    // 实际内容加载由 watch(currentModule) 负责
+  }, 3000);
 });
 </script>
 
