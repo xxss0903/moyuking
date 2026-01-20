@@ -26,6 +26,7 @@ const defaultConfig = {
   // 窗口行为相关
   hideDelayOnMouseLeave: 0, // 鼠标移出后隐藏窗口的延迟时间（毫秒），0表示立刻隐藏
   defaultPinned: false, // 默认是否固定窗口
+  autoPauseOnHide: true, // 隐藏窗口时是否自动暂停视频，显示窗口时自动继续播放
   
   // 界面位置相关
   windowPosition: 'top-right', // 窗口位置：'top-left', 'top-right', 'bottom-left', 'bottom-right'

@@ -2,10 +2,15 @@
   <div id="toolbar">
     <div id="toolbar-left">
       <span>摸鱼王</span>
-      <span id="current-module-name">{{ currentModuleName }}</span>
+      <span 
+        id="current-module-name" 
+        @click.stop="showModulePanel"
+        title="点击选择摸鱼方式"
+      >
+        {{ currentModuleName }}
+      </span>
     </div>
     <div id="toolbar-right">
-      <div class="toolbar-btn" id="module-btn" title="选择摸鱼方式" @click="showModulePanel">🎮</div>
       <div class="toolbar-btn" id="settings-btn" title="系统设置" @click="showSettings">⚙</div>
       <div 
         class="toolbar-btn" 
@@ -116,15 +121,17 @@ onMounted(() => {
   font-size: 12px;
 }
 
-#toolbar-left {
-  opacity: 0.85;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 #current-module-name {
   font-weight: 500;
+  -webkit-app-region: no-drag;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+#current-module-name:hover {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 #toolbar-right {

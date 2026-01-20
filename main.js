@@ -38,6 +38,9 @@ let mouseEnterLeaveTimer = null; // 时间窗口计时器
 let MOUSE_ENTER_LEAVE_WINDOW = 3000; // 时间窗口（从配置文件加载）
 let MOUSE_ENTER_LEAVE_THRESHOLD = 5; // 次数阈值（从配置文件加载）
 
+// 隐藏窗口时自动暂停视频配置
+let AUTO_PAUSE_ON_HIDE = true; // 从配置文件加载
+
 // 加载所有可用模块
 function loadModules() {
   const modulesDir = path.join(__dirname, 'modules');
@@ -111,12 +114,14 @@ function initializeConfig() {
   MIDDLE_BUTTON_HOLD_TIME = config.middleButtonHoldTime || 1000;
   MOUSE_ENTER_LEAVE_WINDOW = config.mouseEnterLeaveWindow || 3000;
   MOUSE_ENTER_LEAVE_THRESHOLD = config.mouseEnterLeaveThreshold || 5;
+  AUTO_PAUSE_ON_HIDE = config.autoPauseOnHide !== false; // 默认开启
   
   console.log(`[Config] Window pinned state: ${isWindowPinned}`);
   console.log(`[Config] Middle button hold time: ${MIDDLE_BUTTON_HOLD_TIME}ms`);
   console.log(`[Config] Hide delay on mouse leave: ${config.hideDelayOnMouseLeave || 0}ms`);
   console.log(`[Config] Mouse enter/leave window: ${MOUSE_ENTER_LEAVE_WINDOW}ms`);
   console.log(`[Config] Mouse enter/leave threshold: ${MOUSE_ENTER_LEAVE_THRESHOLD}`);
+  console.log(`[Config] Auto pause on hide: ${AUTO_PAUSE_ON_HIDE}`);
   console.log(`[Config] ================================================`);
   
   return config;
@@ -190,6 +195,23 @@ function createWindow() {
     }
   });
 
+  // 当主窗口隐藏/显示时，根据配置自动暂停/恢复视频
+  mainWindow.on('hide', () => {
+    console.log(`[Window] Main window hidden`);
+    if (AUTO_PAUSE_ON_HIDE) {
+      console.log(`[Window] Auto pause on hide is enabled, attempting to pause video...`);
+      pauseWebviewVideo();
+    }
+  });
+
+  mainWindow.on('show', () => {
+    console.log(`[Window] Main window shown`);
+    if (AUTO_PAUSE_ON_HIDE) {
+      console.log(`[Window] Auto pause on hide is enabled, attempting to resume video...`);
+      resumeWebviewVideo();
+    }
+  });
+
   // 处理webview的HTML5全屏请求（如抖音视频全屏）
   mainWindow.webContents.on('did-attach-webview', (event, webContents) => {
     console.log(`[Webview] Webview attached, setting up handlers`);
@@ -233,6 +255,98 @@ function createWindow() {
       }
     });
   });
+
+  // 帮助函数：在所有已附加的 webview 中暂停视频
+  function pauseWebviewVideo() {
+    if (webviewContents.length === 0) {
+      console.log(`[Webview] No webview found to pause video`);
+      return;
+    }
+
+    const webContents = webviewContents[0];
+    if (!webContents || webContents.isDestroyed()) {
+      console.log(`[Webview] Webview is destroyed or unavailable`);
+      return;
+    }
+
+    webContents.executeJavaScript(`
+      (function() {
+        try {
+          console.log('[Webview Video] Attempting to pause video...');
+
+          // 方法1: 直接暂停所有 video 元素
+          const videos = document.querySelectorAll('video');
+          let pausedCount = 0;
+          videos.forEach(v => {
+            if (!v.paused) {
+              v.pause();
+              pausedCount++;
+            }
+          });
+
+          // 方法2: 针对 xgplayer，尝试点击暂停按钮
+          if (pausedCount === 0) {
+            const pauseBtn = document.querySelector('.xgplayer-play, .xgplayer-pause, [class*="xgplayer-play"], [class*="xgplayer-pause"]');
+            if (pauseBtn) {
+              pauseBtn.click();
+              console.log('[Webview Video] Clicked xgplayer play/pause button');
+            }
+          }
+        } catch (e) {
+          console.log('[Webview Video] Error while pausing video:', e.message);
+        }
+      })();
+    `, true).catch(err => {
+      console.log('[Webview Video] executeJavaScript error (pause):', err);
+    });
+  }
+
+  // 帮助函数：在所有已附加的 webview 中恢复播放视频
+  function resumeWebviewVideo() {
+    if (webviewContents.length === 0) {
+      console.log(`[Webview] No webview found to resume video`);
+      return;
+    }
+
+    const webContents = webviewContents[0];
+    if (!webContents || webContents.isDestroyed()) {
+      console.log(`[Webview] Webview is destroyed or unavailable`);
+      return;
+    }
+
+    webContents.executeJavaScript(`
+      (function() {
+        try {
+          console.log('[Webview Video] Attempting to resume video...');
+
+          // 方法1: 直接播放第一个 video 元素
+          const videos = document.querySelectorAll('video');
+          for (let i = 0; i < videos.length; i++) {
+            const v = videos[i];
+            if (v.paused) {
+              const playPromise = v.play && v.play();
+              if (playPromise && playPromise.catch) {
+                playPromise.catch(err => console.log('[Webview Video] play() error:', err && err.message));
+              }
+              console.log('[Webview Video] Called play() on video');
+              break;
+            }
+          }
+
+          // 方法2: 如果没有 video 播放，尝试点击播放按钮
+          const playBtn = document.querySelector('.xgplayer-play, [class*="xgplayer-play"]');
+          if (playBtn) {
+            playBtn.click();
+            console.log('[Webview Video] Clicked xgplayer play button');
+          }
+        } catch (e) {
+          console.log('[Webview Video] Error while resuming video:', e.message);
+        }
+      })();
+    `, true).catch(err => {
+      console.log('[Webview Video] executeJavaScript error (resume):', err);
+    });
+  }
 
   // 全局函数：触发webview全屏
   global.triggerWebviewFullscreen = () => {
@@ -733,6 +847,12 @@ ipcMain.handle('set-config', (event, key, value) => {
   // 如果修改了默认固定状态，更新当前状态（需要重启生效）
   if (key === 'defaultPinned') {
     console.log(`[Config] Default pinned changed, will take effect on next startup`);
+  }
+  
+  // 如果修改了自动暂停开关，立即更新内存中的配置
+  if (key === 'autoPauseOnHide') {
+    AUTO_PAUSE_ON_HIDE = value !== false;
+    console.log(`[Config] Auto pause on hide updated: ${AUTO_PAUSE_ON_HIDE}`);
   }
   
   // 如果修改了鼠标进入/离开解锁配置，立即重新加载
