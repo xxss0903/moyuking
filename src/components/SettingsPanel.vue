@@ -24,8 +24,11 @@
         <div class="setting-item">
           <div class="setting-label">
             <span class="setting-label-text">窗口位置</span>
+            <span 
+              class="setting-help" 
+              title="设置窗口在屏幕上的默认位置"
+            >?</span>
           </div>
-          <div class="setting-description">设置窗口在屏幕上的默认位置</div>
           <div class="setting-control" style="margin-top: 8px;">
             <select class="select-control" v-model="config.windowPosition" @change="updateConfig('windowPosition', $event.target.value)">
               <option value="top-left">左上角</option>
@@ -40,34 +43,43 @@
         <div class="setting-item">
           <div class="setting-label">
             <span class="setting-label-text">默认固定窗口</span>
+            <span 
+              class="setting-help" 
+              title="启动时是否默认固定窗口（固定后鼠标移出不会隐藏）"
+            >?</span>
             <div 
               class="toggle-switch" 
               :class="{ active: config.defaultPinned }"
               @click="toggleDefaultPinned"
             ></div>
           </div>
-          <div class="setting-description">启动时是否默认固定窗口（固定后鼠标移出不会隐藏）</div>
         </div>
 
         <!-- 隐藏时自动暂停视频 -->
         <div class="setting-item">
           <div class="setting-label">
             <span class="setting-label-text">隐藏时自动暂停视频</span>
+            <span 
+              class="setting-help" 
+              title="隐藏应用窗口时自动暂停当前视频，重新显示窗口时自动继续播放"
+            >?</span>
             <div 
               class="toggle-switch" 
               :class="{ active: config.autoPauseOnHide }"
               @click="toggleAutoPauseOnHide"
             ></div>
           </div>
-          <div class="setting-description">隐藏应用窗口时自动暂停当前视频，重新显示窗口时自动继续播放</div>
         </div>
 
         <!-- 隐藏延迟设置 -->
         <div class="setting-item">
           <div class="setting-label">
             <span class="setting-label-text">隐藏延迟时间</span>
+            <span 
+              class="setting-help" 
+              title="鼠标移出窗口后延迟隐藏的时间（秒），0 表示立刻隐藏"
+            >?</span>
           </div>
-          <div class="setting-description">鼠标移出窗口后延迟隐藏的时间（秒），0表示立刻隐藏</div>
           <div class="setting-control" style="margin-top: 8px;">
             <input 
               type="number" 
@@ -86,8 +98,11 @@
         <div class="setting-item">
           <div class="setting-label">
             <span class="setting-label-text">进入/离开时间窗口</span>
+            <span 
+              class="setting-help" 
+              title="鼠标进入/离开解锁的时间窗口（秒），在此时间内需要达到指定次数"
+            >?</span>
           </div>
-          <div class="setting-description">鼠标进入/离开解锁的时间窗口（秒），在此时间内需要达到指定次数</div>
           <div class="setting-control" style="margin-top: 8px;">
             <input 
               type="number" 
@@ -106,8 +121,11 @@
         <div class="setting-item">
           <div class="setting-label">
             <span class="setting-label-text">进入/离开次数阈值</span>
+            <span 
+              class="setting-help" 
+              title="在时间窗口内需要达到的鼠标进入/离开次数"
+            >?</span>
           </div>
-          <div class="setting-description">在时间窗口内需要达到的鼠标进入/离开次数</div>
           <div class="setting-control" style="margin-top: 8px;">
             <input 
               type="number" 
@@ -126,8 +144,11 @@
         <div class="setting-item">
           <div class="setting-label">
             <span class="setting-label-text">配置文件</span>
+            <span 
+              class="setting-help" 
+              title="查看配置文件路径和内容"
+            >?</span>
           </div>
-          <div class="setting-description">查看配置文件路径和内容</div>
           <div class="setting-control" style="margin-top: 8px; flex-direction: column; align-items: flex-start; gap: 8px;">
             <div style="font-size: 12px; color: #666; word-break: break-all;">
               路径: {{ configFilePath || '加载中...' }}
@@ -415,6 +436,25 @@ onMounted(() => {
   font-size: 12px;
   color: #666;
   margin-top: 4px;
+}
+
+.setting-help {
+  margin-left: 6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid #ccc;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #666;
+  cursor: default;
+  background: #f5f5f5;
+}
+
+.setting-help:hover {
+  background: #e0e0e0;
 }
 
 .setting-control {
