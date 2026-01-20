@@ -3,50 +3,54 @@
     <div id="settings-content">
       <h2>系统设置</h2>
       <div id="settings-list">
-        <!-- 版本信息 -->
+        <!-- 版本信息（整行布局：标题 + 版本号 + 按钮） -->
         <div class="setting-item">
           <div class="setting-label">
             <span class="setting-label-text">版本号</span>
-            <span style="color: #666; font-size: 12px;">v{{ version }}</span>
-          </div>
-          <div class="setting-control" style="justify-content: center; margin-top: 8px;">
-            <button 
-              class="check-update-btn" 
-              :disabled="checkingUpdate"
-              @click="checkUpdate"
-            >
-              {{ updateButtonText }}
-            </button>
+            <span style="color: #666; font-size: 12px; margin-left: 4px;">v{{ version }}</span>
+            <div class="setting-control" style="margin-top: 0;">
+              <button 
+                class="check-update-btn" 
+                :disabled="checkingUpdate"
+                @click="checkUpdate"
+              >
+                {{ updateButtonText }}
+              </button>
+            </div>
           </div>
         </div>
 
-        <!-- 窗口位置设置 -->
+        <!-- 窗口位置设置（整行：标题 + tip + 下拉框） -->
         <div class="setting-item">
           <div class="setting-label">
-            <span class="setting-label-text">窗口位置</span>
-            <span 
-              class="setting-help" 
-              title="设置窗口在屏幕上的默认位置"
-            >?</span>
-          </div>
-          <div class="setting-control" style="margin-top: 8px;">
-            <select class="select-control" v-model="config.windowPosition" @change="updateConfig('windowPosition', $event.target.value)">
-              <option value="top-left">左上角</option>
-              <option value="top-right">右上角</option>
-              <option value="bottom-left">左下角</option>
-              <option value="bottom-right">右下角</option>
-            </select>
+            <span class="setting-label-text">
+              窗口位置
+              <span 
+                class="setting-help" 
+                title="设置窗口在屏幕上的默认位置"
+              >?</span>
+            </span>
+            <div class="setting-control" style="margin-top: 0;">
+              <select class="select-control" v-model="config.windowPosition" @change="updateConfig('windowPosition', $event.target.value)">
+                <option value="top-left">左上角</option>
+                <option value="top-right">右上角</option>
+                <option value="bottom-left">左下角</option>
+                <option value="bottom-right">右下角</option>
+              </select>
+            </div>
           </div>
         </div>
 
         <!-- 默认固定状态 -->
         <div class="setting-item">
           <div class="setting-label">
-            <span class="setting-label-text">默认固定窗口</span>
-            <span 
-              class="setting-help" 
-              title="启动时是否默认固定窗口（固定后鼠标移出不会隐藏）"
-            >?</span>
+            <span class="setting-label-text">
+              默认固定窗口
+              <span 
+                class="setting-help" 
+                title="启动时是否默认固定窗口（固定后鼠标移出不会隐藏）"
+              >?</span>
+            </span>
             <div 
               class="toggle-switch" 
               :class="{ active: config.defaultPinned }"
@@ -58,11 +62,13 @@
         <!-- 隐藏时自动暂停视频 -->
         <div class="setting-item">
           <div class="setting-label">
-            <span class="setting-label-text">隐藏时自动暂停视频</span>
-            <span 
-              class="setting-help" 
-              title="隐藏应用窗口时自动暂停当前视频，重新显示窗口时自动继续播放"
-            >?</span>
+            <span class="setting-label-text">
+              隐藏时自动暂停视频
+              <span 
+                class="setting-help" 
+                title="隐藏应用窗口时自动暂停当前视频，重新显示窗口时自动继续播放"
+              >?</span>
+            </span>
             <div 
               class="toggle-switch" 
               :class="{ active: config.autoPauseOnHide }"
@@ -71,77 +77,83 @@
           </div>
         </div>
 
-        <!-- 隐藏延迟设置 -->
+        <!-- 隐藏延迟设置（整行：标题 + tip + 输入框） -->
         <div class="setting-item">
           <div class="setting-label">
-            <span class="setting-label-text">隐藏延迟时间</span>
-            <span 
-              class="setting-help" 
-              title="鼠标移出窗口后延迟隐藏的时间（秒），0 表示立刻隐藏"
-            >?</span>
-          </div>
-          <div class="setting-control" style="margin-top: 8px;">
-            <input 
-              type="number" 
-              class="input-control" 
-              v-model.number="config.hideDelayOnMouseLeave"
-              min="0" 
-              max="10" 
-              step="0.1"
-              @change="updateHideDelay"
-            >
-            <span style="color: #666; font-size: 12px;">秒</span>
+            <span class="setting-label-text">
+              隐藏延迟时间
+              <span 
+                class="setting-help" 
+                title="鼠标移出窗口后延迟隐藏的时间（秒），0 表示立刻隐藏"
+              >?</span>
+            </span>
+            <div class="setting-control" style="margin-top: 0;">
+              <input 
+                type="number" 
+                class="input-control" 
+                v-model.number="config.hideDelayOnMouseLeave"
+                min="0" 
+                max="10" 
+                step="0.1"
+                @change="updateHideDelay"
+              >
+              <span style="color: #666; font-size: 12px;">秒</span>
+            </div>
           </div>
         </div>
 
-        <!-- 进入/离开时间窗口 -->
+        <!-- 进入/离开时间窗口（整行：标题 + tip + 输入框） -->
         <div class="setting-item">
           <div class="setting-label">
-            <span class="setting-label-text">进入/离开时间窗口</span>
-            <span 
-              class="setting-help" 
-              title="鼠标进入/离开解锁的时间窗口（秒），在此时间内需要达到指定次数"
-            >?</span>
-          </div>
-          <div class="setting-control" style="margin-top: 8px;">
-            <input 
-              type="number" 
-              class="input-control" 
-              v-model.number="config.mouseEnterLeaveWindow"
-              min="1" 
-              max="10" 
-              step="0.5"
-              @change="updateEnterLeaveWindow"
-            >
-            <span style="color: #666; font-size: 12px;">秒</span>
+            <span class="setting-label-text">
+              进入/离开时间窗口
+              <span 
+                class="setting-help" 
+                title="鼠标进入/离开解锁的时间窗口（秒），在此时间内需要达到指定次数"
+              >?</span>
+            </span>
+            <div class="setting-control" style="margin-top: 0;">
+              <input 
+                type="number" 
+                class="input-control" 
+                v-model.number="config.mouseEnterLeaveWindow"
+                min="1" 
+                max="10" 
+                step="0.5"
+                @change="updateEnterLeaveWindow"
+              >
+              <span style="color: #666; font-size: 12px;">秒</span>
+            </div>
           </div>
         </div>
 
-        <!-- 进入/离开次数阈值 -->
+        <!-- 进入/离开次数阈值（整行：标题 + tip + 输入框） -->
         <div class="setting-item">
           <div class="setting-label">
-            <span class="setting-label-text">进入/离开次数阈值</span>
-            <span 
-              class="setting-help" 
-              title="在时间窗口内需要达到的鼠标进入/离开次数"
-            >?</span>
-          </div>
-          <div class="setting-control" style="margin-top: 8px;">
-            <input 
-              type="number" 
-              class="input-control" 
-              v-model.number="config.mouseEnterLeaveThreshold"
-              min="2" 
-              max="10" 
-              step="1"
-              @change="updateEnterLeaveThreshold"
-            >
-            <span style="color: #666; font-size: 12px;">次</span>
+            <span class="setting-label-text">
+              进入/离开次数阈值
+              <span 
+                class="setting-help" 
+                title="在时间窗口内需要达到的鼠标进入/离开次数"
+              >?</span>
+            </span>
+            <div class="setting-control" style="margin-top: 0;">
+              <input 
+                type="number" 
+                class="input-control" 
+                v-model.number="config.mouseEnterLeaveThreshold"
+                min="2" 
+                max="10" 
+                step="1"
+                @change="updateEnterLeaveThreshold"
+              >
+              <span style="color: #666; font-size: 12px;">次</span>
+            </div>
           </div>
         </div>
 
         <!-- 配置文件信息 -->
-        <div class="setting-item">
+        <!-- <div class="setting-item">
           <div class="setting-label">
             <span class="setting-label-text">配置文件</span>
             <span 
@@ -161,7 +173,7 @@
               {{ viewingConfig ? '查看中...' : '查看配置文件内容' }}
             </button>
           </div>
-        </div>
+        </div> -->
       </div>
       <button id="settings-close" @click="close">确定</button>
     </div>
@@ -430,6 +442,8 @@ onMounted(() => {
   font-weight: 500;
   color: #333;
   font-size: 14px;
+  display: inline-block;
+  min-width: 110px; /* 固定标题宽度，方便对齐问号和控件 */
 }
 
 .setting-description {
