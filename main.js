@@ -1,7 +1,8 @@
 const { app, BrowserWindow, globalShortcut, ipcMain, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { loadConfig, updateConfig } = require('./config');
+const { loadConfig, updateConfig, getConfig, setConfig } = require('./config');
+const packageJson = require('./package.json');
 
 // 设置控制台输出编码为 UTF-8（解决中文乱码问题）
 if (process.platform === 'win32') {
@@ -19,6 +20,7 @@ let mainWindow = null;
 let overlayWindow = null; // 透明覆盖窗口，用于监听鼠标中键
 let mouseMonitorTimer = null;
 let isMouseInsideWindow = false;
+let hideDelayTimer = null; // 延迟隐藏定时器
 
 // 鼠标中键长按检测
 let middleButtonPressed = false;
@@ -56,14 +58,59 @@ function loadModules() {
 
 let availableModules = loadModules();
 
+// 设置窗口位置到屏幕角落
+function setWindowPosition(position) {
+  if (!mainWindow) return;
+  
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+  const windowWidth = 480;
+  const windowHeight = 800;
+  const margin = 10;
+  
+  let x, y;
+  
+  switch (position) {
+    case 'top-left':
+      x = margin;
+      y = margin;
+      break;
+    case 'top-right':
+      x = width - windowWidth - margin;
+      y = margin;
+      break;
+    case 'bottom-left':
+      x = margin;
+      y = height - windowHeight - margin;
+      break;
+    case 'bottom-right':
+      x = width - windowWidth - margin;
+      y = height - windowHeight - margin;
+      break;
+    default:
+      return;
+  }
+  
+  mainWindow.setPosition(x, y);
+  console.log(`[Window] Position set to ${position}: (${x}, ${y})`);
+}
+
 function createWindow() {
   const config = loadConfig();
   
   // 从配置文件加载所有设置
-  isWindowPinned = config.isWindowPinned || false;
+  isWindowPinned = config.defaultPinned || config.isWindowPinned || false;
   MIDDLE_BUTTON_HOLD_TIME = config.middleButtonHoldTime || 1000;
   console.log(`[Config] Window pinned state loaded: ${isWindowPinned}`);
   console.log(`[Config] Middle button hold time loaded: ${MIDDLE_BUTTON_HOLD_TIME}ms`);
+  console.log(`[Config] Hide delay on mouse leave: ${config.hideDelayOnMouseLeave || 0}ms`);
+  
+  // 如果配置了窗口位置且没有保存的位置，设置窗口位置
+  if (config.windowPosition && !config.windowBounds) {
+    // 延迟设置，等窗口创建后再设置位置
+    setTimeout(() => {
+      setWindowPosition(config.windowPosition);
+    }, 100);
+  }
   
   mainWindow = new BrowserWindow({
     width: config.windowBounds?.width || 480,
@@ -287,22 +334,57 @@ function startMouseMonitor() {
       middleButtonPressed = false;
       middleButtonPressTime = null;
       
-      // 如果窗口未固定，则隐藏窗口
+      // 清除之前的延迟隐藏定时器
+      if (hideDelayTimer) {
+        clearTimeout(hideDelayTimer);
+        hideDelayTimer = null;
+      }
+      
+      // 如果窗口未固定，则延迟隐藏窗口
       if (!isWindowPinned) {
-        console.log(`[Mouse Monitor] Hiding window (not pinned)`);
-        if (mainWindow) {
-          mainWindow.hide();
-        }
+        const hideDelay = getConfig('hideDelayOnMouseLeave') || 0;
+        console.log(`[Mouse Monitor] Hide delay: ${hideDelay}ms`);
         
-        // 隐藏覆盖窗口
-        if (overlayWindow) {
-          overlayWindow.setIgnoreMouseEvents(true);
-          overlayWindow.hide();
+        if (hideDelay === 0) {
+          // 立刻隐藏
+          console.log(`[Mouse Monitor] Hiding window immediately (not pinned)`);
+          if (mainWindow) {
+            mainWindow.hide();
+          }
+          
+          // 隐藏覆盖窗口
+          if (overlayWindow) {
+            overlayWindow.setIgnoreMouseEvents(true);
+            overlayWindow.hide();
+          }
+        } else {
+          // 延迟隐藏
+          console.log(`[Mouse Monitor] Will hide window after ${hideDelay}ms`);
+          hideDelayTimer = setTimeout(() => {
+            if (!isMouseInsideWindow && !isWindowPinned && mainWindow) {
+              console.log(`[Mouse Monitor] Hiding window after delay (not pinned)`);
+              mainWindow.hide();
+              
+              // 隐藏覆盖窗口
+              if (overlayWindow) {
+                overlayWindow.setIgnoreMouseEvents(true);
+                overlayWindow.hide();
+              }
+            }
+            hideDelayTimer = null;
+          }, hideDelay);
         }
       } else {
         console.log(`[Mouse Monitor] Window is pinned, keeping visible`);
       }
       console.log(`[Mouse Monitor] =============================================\n`);
+    }
+    
+    // 如果鼠标重新进入窗口，取消延迟隐藏
+    if (inside && hideDelayTimer) {
+      clearTimeout(hideDelayTimer);
+      hideDelayTimer = null;
+      console.log(`[Mouse Monitor] Canceled hide delay (mouse re-entered)`);
     }
   }, 150);
 }
@@ -372,6 +454,45 @@ ipcMain.handle('set-pin-state', (event, pinned) => {
   console.log(`[Window Pin] Window pin state changed: ${pinned ? 'PINNED' : 'UNPINNED'}`);
   console.log(`[Config] Pin state saved to config file`);
   return true;
+});
+
+// IPC 处理：配置管理
+ipcMain.handle('get-all-config', () => {
+  return loadConfig();
+});
+
+ipcMain.handle('get-config', (event, key) => {
+  return getConfig(key);
+});
+
+ipcMain.handle('set-config', (event, key, value) => {
+  setConfig(key, value);
+  console.log(`[Config] Config updated: ${key} = ${value}`);
+  
+  // 如果修改了窗口位置，立即应用
+  if (key === 'windowPosition' && mainWindow) {
+    setWindowPosition(value);
+  }
+  
+  // 如果修改了默认固定状态，更新当前状态（需要重启生效）
+  if (key === 'defaultPinned') {
+    console.log(`[Config] Default pinned changed, will take effect on next startup`);
+  }
+  
+  return true;
+});
+
+// IPC 处理：应用信息
+ipcMain.handle('get-app-version', () => {
+  return packageJson.version;
+});
+
+ipcMain.handle('check-for-updates', async () => {
+  // 简单的更新检查（实际应该连接更新服务器）
+  console.log(`[Update] Checking for updates...`);
+  console.log(`[Update] Current version: ${packageJson.version}`);
+  // 这里可以添加实际的更新检查逻辑
+  return { hasUpdate: false, latestVersion: packageJson.version };
 });
 
 // IPC 处理：鼠标中键按下

@@ -23,6 +23,7 @@ function setupToolbar() {
   const closeBtn = document.getElementById('close-btn');
   const minBtn = document.getElementById('min-btn');
   const settingsBtn = document.getElementById('settings-btn');
+  const moduleBtn = document.getElementById('module-btn');
   const pinBtn = document.getElementById('pin-btn');
 
   if (closeBtn) {
@@ -43,8 +44,20 @@ function setupToolbar() {
 
   if (settingsBtn) {
     settingsBtn.addEventListener('click', () => {
-      showSettingsPanel();
+      console.log('Settings button clicked');
+      showSystemSettings();
     });
+  } else {
+    console.error('Settings button not found');
+  }
+
+  if (moduleBtn) {
+    moduleBtn.addEventListener('click', () => {
+      console.log('Module button clicked');
+      showModulePanel();
+    });
+  } else {
+    console.error('Module button not found');
   }
 
   if (pinBtn) {
@@ -159,9 +172,9 @@ async function switchModule(moduleId) {
   }
 }
 
-// 显示设置面板
-function showSettingsPanel() {
-  const panel = document.getElementById('settings-panel');
+// 显示模块选择面板
+function showModulePanel() {
+  const panel = document.getElementById('module-panel');
   const moduleList = document.getElementById('module-list');
   
   if (!panel || !moduleList) return;
@@ -209,24 +222,167 @@ function showSettingsPanel() {
   });
 }
 
-// 设置设置面板
-function setupSettingsPanel() {
+// 显示系统设置面板
+async function showSystemSettings() {
   const panel = document.getElementById('settings-panel');
-  const closeBtn = document.getElementById('settings-close');
+  const settingsList = document.getElementById('settings-list');
+  
+  if (!panel || !settingsList) {
+    console.error('Settings panel or settings list not found');
+    return;
+  }
 
-  if (closeBtn) {
-    closeBtn.addEventListener('click', () => {
-      if (panel) {
-        panel.classList.remove('show');
+  settingsList.innerHTML = '';
+
+  try {
+    // 加载当前配置
+    const config = await window.electronAPI.getAllConfig();
+    const version = await window.electronAPI.getAppVersion();
+
+    // 版本信息
+    const versionItem = document.createElement('div');
+    versionItem.className = 'setting-item';
+    versionItem.innerHTML = `
+      <div class="setting-label">
+        <span class="setting-label-text">版本号</span>
+        <span style="color: #666; font-size: 12px;">v${version}</span>
+      </div>
+      <div class="setting-control" style="justify-content: center; margin-top: 8px;">
+        <button class="check-update-btn" id="check-update-btn">检查更新</button>
+      </div>
+    `;
+    settingsList.appendChild(versionItem);
+
+    // 检查更新按钮
+    const checkUpdateBtn = versionItem.querySelector('#check-update-btn');
+    if (checkUpdateBtn) {
+      checkUpdateBtn.addEventListener('click', async () => {
+        checkUpdateBtn.disabled = true;
+        checkUpdateBtn.textContent = '检查中...';
+        try {
+          await window.electronAPI.checkForUpdates();
+          checkUpdateBtn.textContent = '已是最新版本';
+          setTimeout(() => {
+            checkUpdateBtn.disabled = false;
+            checkUpdateBtn.textContent = '检查更新';
+          }, 2000);
+        } catch (error) {
+          checkUpdateBtn.textContent = '检查失败';
+          setTimeout(() => {
+            checkUpdateBtn.disabled = false;
+            checkUpdateBtn.textContent = '检查更新';
+          }, 2000);
+        }
+      });
+    }
+
+    // 窗口位置设置
+    const positionItem = document.createElement('div');
+    positionItem.className = 'setting-item';
+    positionItem.innerHTML = `
+      <div class="setting-label">
+        <span class="setting-label-text">窗口位置</span>
+      </div>
+      <div class="setting-description">设置窗口在屏幕上的默认位置</div>
+      <div class="setting-control" style="margin-top: 8px;">
+        <select class="select-control" id="window-position-select">
+          <option value="top-left">左上角</option>
+          <option value="top-right">右上角</option>
+          <option value="bottom-left">左下角</option>
+          <option value="bottom-right">右下角</option>
+        </select>
+      </div>
+    `;
+    const positionSelect = positionItem.querySelector('#window-position-select');
+    positionSelect.value = config.windowPosition || 'top-right';
+    positionSelect.addEventListener('change', async (e) => {
+      await window.electronAPI.setConfig('windowPosition', e.target.value);
+    });
+    settingsList.appendChild(positionItem);
+
+    // 默认固定状态
+    const defaultPinnedItem = document.createElement('div');
+    defaultPinnedItem.className = 'setting-item';
+    defaultPinnedItem.innerHTML = `
+      <div class="setting-label">
+        <span class="setting-label-text">默认固定窗口</span>
+        <div class="toggle-switch ${config.defaultPinned ? 'active' : ''}" id="default-pinned-toggle"></div>
+      </div>
+      <div class="setting-description">启动时是否默认固定窗口（固定后鼠标移出不会隐藏）</div>
+    `;
+    const defaultPinnedToggle = defaultPinnedItem.querySelector('#default-pinned-toggle');
+    defaultPinnedToggle.addEventListener('click', async () => {
+      const newValue = !defaultPinnedToggle.classList.contains('active');
+      defaultPinnedToggle.classList.toggle('active');
+      await window.electronAPI.setConfig('defaultPinned', newValue);
+    });
+    settingsList.appendChild(defaultPinnedItem);
+
+    // 隐藏延迟设置
+    const hideDelayItem = document.createElement('div');
+    hideDelayItem.className = 'setting-item';
+    hideDelayItem.innerHTML = `
+      <div class="setting-label">
+        <span class="setting-label-text">隐藏延迟时间</span>
+      </div>
+      <div class="setting-description">鼠标移出窗口后延迟隐藏的时间（毫秒），0表示立刻隐藏</div>
+      <div class="setting-control" style="margin-top: 8px;">
+        <input type="number" class="input-control" id="hide-delay-input" min="0" max="10000" step="100" value="${config.hideDelayOnMouseLeave || 0}">
+        <span style="color: #666; font-size: 12px;">毫秒</span>
+      </div>
+    `;
+    const hideDelayInput = hideDelayItem.querySelector('#hide-delay-input');
+    hideDelayInput.addEventListener('change', async (e) => {
+      const value = parseInt(e.target.value) || 0;
+      await window.electronAPI.setConfig('hideDelayOnMouseLeave', value);
+    });
+    settingsList.appendChild(hideDelayItem);
+
+    panel.classList.add('show');
+  } catch (error) {
+    console.error('Failed to load settings:', error);
+    settingsList.innerHTML = '<div style="padding: 20px; color: #f44336; text-align: center;">加载设置失败</div>';
+  }
+}
+
+// 设置面板
+function setupSettingsPanel() {
+  // 模块选择面板
+  const modulePanel = document.getElementById('module-panel');
+  const moduleCloseBtn = document.getElementById('module-close');
+
+  if (moduleCloseBtn) {
+    moduleCloseBtn.addEventListener('click', () => {
+      if (modulePanel) {
+        modulePanel.classList.remove('show');
       }
     });
   }
 
-  // 点击背景关闭
-  if (panel) {
-    panel.addEventListener('click', (e) => {
-      if (e.target === panel) {
-        panel.classList.remove('show');
+  if (modulePanel) {
+    modulePanel.addEventListener('click', (e) => {
+      if (e.target === modulePanel) {
+        modulePanel.classList.remove('show');
+      }
+    });
+  }
+
+  // 系统设置面板
+  const settingsPanel = document.getElementById('settings-panel');
+  const settingsCloseBtn = document.getElementById('settings-close');
+
+  if (settingsCloseBtn) {
+    settingsCloseBtn.addEventListener('click', () => {
+      if (settingsPanel) {
+        settingsPanel.classList.remove('show');
+      }
+    });
+  }
+
+  if (settingsPanel) {
+    settingsPanel.addEventListener('click', (e) => {
+      if (e.target === settingsPanel) {
+        settingsPanel.classList.remove('show');
       }
     });
   }

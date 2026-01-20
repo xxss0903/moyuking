@@ -21,7 +21,14 @@ const defaultConfig = {
   
   // 启动相关
   showWindowOnStartup: true, // 启动时是否显示窗口（用于指示位置）
-  startupDisplayDuration: 3000 // 启动时窗口显示时长（毫秒）
+  startupDisplayDuration: 3000, // 启动时窗口显示时长（毫秒）
+  
+  // 窗口行为相关
+  hideDelayOnMouseLeave: 0, // 鼠标移出后隐藏窗口的延迟时间（毫秒），0表示立刻隐藏
+  defaultPinned: false, // 默认是否固定窗口
+  
+  // 界面位置相关
+  windowPosition: 'top-right' // 窗口位置：'top-left', 'top-right', 'bottom-left', 'bottom-right'
 };
 
 // 读取配置
