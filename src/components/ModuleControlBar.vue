@@ -3,6 +3,7 @@
     <!-- 抖音模块控制栏 -->
     <template v-if="moduleId === 'douyin'">
       <button class="module-control-btn" @click="goHome">🏠 主页</button>
+      <button class="module-control-btn" @click="goBack">← 返回</button>
       <button class="module-control-btn" @click="triggerPageFullscreen">⛶ 页面全屏</button>
       <button class="module-control-btn" @click="refresh">🔄 刷新</button>
     </template>
