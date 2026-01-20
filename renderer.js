@@ -186,10 +186,216 @@ async function switchModule(moduleId) {
         const module = availableModules.find(m => m.id === moduleId);
         moduleNameEl.textContent = module ? module.icon + ' ' + module.name : '';
       }
+
+      // 更新模块控制栏
+      updateModuleControlBar(moduleId);
     }
   } catch (error) {
     console.error('加载模块失败:', error);
     container.innerHTML = '<div style="padding: 20px; color: #999; text-align: center;">模块加载失败</div>';
+  }
+}
+
+// 更新模块控制栏
+function updateModuleControlBar(moduleId) {
+  const controlBar = document.getElementById('module-control-bar');
+  if (!controlBar) return;
+
+  // 清空控制栏
+  controlBar.innerHTML = '';
+
+  if (moduleId === 'douyin') {
+    // 抖音模块控制栏
+    controlBar.innerHTML = `
+      <button class="module-control-btn" id="douyin-home-btn">🏠 主页</button>
+      <button class="module-control-btn" id="douyin-page-fullscreen-btn">⛶ 页面全屏</button>
+      <button class="module-control-btn" id="douyin-refresh-btn">🔄 刷新</button>
+    `;
+    controlBar.classList.add('show');
+
+    // 绑定事件
+    const homeBtn = document.getElementById('douyin-home-btn');
+    const fullscreenBtn = document.getElementById('douyin-page-fullscreen-btn');
+    const refreshBtn = document.getElementById('douyin-refresh-btn');
+
+    if (homeBtn) {
+      homeBtn.addEventListener('click', () => {
+        if (window.electronAPI && window.electronAPI.navigateWebview) {
+          window.electronAPI.navigateWebview('https://www.douyin.com/');
+        }
+      });
+    }
+
+    if (fullscreenBtn) {
+      fullscreenBtn.addEventListener('click', () => {
+        console.log('[Douyin Control] Page fullscreen button clicked');
+        
+        if (!window.electronAPI) {
+          console.error('[Douyin Control] window.electronAPI is not available');
+          return;
+        }
+        
+        if (!window.electronAPI.executeWebviewScript) {
+          console.error('[Douyin Control] executeWebviewScript is not available');
+          return;
+        }
+        
+        console.log('[Douyin Control] Executing webview script to find and click fullscreen button');
+        
+        // 点击抖音的 xgplayer-page-full-screen 按钮
+        window.electronAPI.executeWebviewScript(`
+          (function() {
+            console.log('[Webview Script] Starting to find fullscreen button');
+            
+            // 方法1: 查找 xgplayer-page-full-screen 按钮
+            console.log('[Webview Script] Method 1: Looking for .xgplayer-page-full-screen');
+            const fullscreenBtn1 = document.querySelector('.xgplayer-page-full-screen');
+            if (fullscreenBtn1) {
+              console.log('[Webview Script] Found .xgplayer-page-full-screen button, clicking...');
+              fullscreenBtn1.click();
+              return { success: true, method: 'xgplayer-page-full-screen', element: fullscreenBtn1.className };
+            }
+            
+            // 方法2: 查找包含 xgplayer-page-full-screen 的类
+            console.log('[Webview Script] Method 2: Looking for elements with xgplayer-page-full-screen in class');
+            const fullscreenBtn2 = document.querySelector('[class*="xgplayer-page-full-screen"]');
+            if (fullscreenBtn2) {
+              console.log('[Webview Script] Found element with xgplayer-page-full-screen in class, clicking...');
+              fullscreenBtn2.click();
+              return { success: true, method: 'class-contains-xgplayer-page-full-screen', element: fullscreenBtn2.className };
+            }
+            
+            // 方法3: 查找包含 page-full-screen 的类
+            console.log('[Webview Script] Method 3: Looking for elements with page-full-screen in class');
+            const fullscreenBtn3 = document.querySelector('[class*="page-full-screen"]');
+            if (fullscreenBtn3) {
+              console.log('[Webview Script] Found element with page-full-screen in class, clicking...');
+              fullscreenBtn3.click();
+              return { success: true, method: 'class-contains-page-full-screen', element: fullscreenBtn3.className };
+            }
+            
+            // 方法4: 查找所有包含 fullscreen 的按钮
+            console.log('[Webview Script] Method 4: Looking for all buttons/divs with fullscreen in class');
+            const buttons = document.querySelectorAll('button, div[role="button"], .xgplayer-controls-item');
+            console.log('[Webview Script] Found ' + buttons.length + ' potential buttons');
+            
+            for (let i = 0; i < buttons.length; i++) {
+              const btn = buttons[i];
+              const className = btn.className || '';
+              const classList = Array.from(btn.classList || []);
+              
+              if (className.includes('full-screen') || className.includes('fullscreen') || className.includes('page-full')) {
+                console.log('[Webview Script] Found button with fullscreen-related class:', className);
+                console.log('[Webview Script] Button classList:', classList);
+                console.log('[Webview Script] Clicking button...');
+                btn.click();
+                return { success: true, method: 'search-all-buttons', element: className, index: i };
+              }
+            }
+            
+            // 方法5: 查找所有 xgplayer 相关的控制项
+            console.log('[Webview Script] Method 5: Looking for xgplayer-controls-item elements');
+            const xgplayerItems = document.querySelectorAll('.xgplayer-controls-item');
+            console.log('[Webview Script] Found ' + xgplayerItems.length + ' xgplayer-controls-item elements');
+            
+            for (let i = 0; i < xgplayerItems.length; i++) {
+              const item = xgplayerItems[i];
+              const className = item.className || '';
+              const ariaLabel = item.getAttribute('aria-label') || '';
+              const title = item.getAttribute('title') || '';
+              
+              console.log('[Webview Script] Item ' + i + ' - className:', className, 'aria-label:', ariaLabel, 'title:', title);
+              
+              if (className.includes('full') || ariaLabel.includes('全屏') || ariaLabel.includes('fullscreen') || title.includes('全屏') || title.includes('fullscreen')) {
+                console.log('[Webview Script] Found xgplayer-controls-item with fullscreen-related content, clicking...');
+                item.click();
+                return { success: true, method: 'xgplayer-controls-item', element: className, ariaLabel: ariaLabel, title: title };
+              }
+            }
+            
+            // 方法6: 尝试查找所有可能的全屏相关元素
+            console.log('[Webview Script] Method 6: Looking for any element with fullscreen-related attributes');
+            const allElements = document.querySelectorAll('*');
+            console.log('[Webview Script] Total elements found:', allElements.length);
+            
+            for (let i = 0; i < Math.min(allElements.length, 1000); i++) {
+              const el = allElements[i];
+              const className = el.className || '';
+              const ariaLabel = el.getAttribute('aria-label') || '';
+              const title = el.getAttribute('title') || '';
+              const id = el.id || '';
+              
+              if (className.includes('full') && (className.includes('screen') || className.includes('Screen'))) {
+                console.log('[Webview Script] Found element with fullscreen in className:', className);
+                console.log('[Webview Script] Element tag:', el.tagName, 'id:', id, 'aria-label:', ariaLabel);
+                el.click();
+                return { success: true, method: 'search-all-elements', element: className, tag: el.tagName, id: id };
+              }
+            }
+            
+            console.log('[Webview Script] Could not find fullscreen button');
+            return { success: false, error: 'No fullscreen button found' };
+          })();
+        `).then((result) => {
+          console.log('[Douyin Control] Webview script execution result:', result);
+          if (result && result.success) {
+            console.log('[Douyin Control] Fullscreen button clicked successfully via method:', result.method);
+          } else {
+            console.error('[Douyin Control] Failed to click fullscreen button:', result);
+          }
+        }).catch((error) => {
+          console.error('[Douyin Control] Error executing webview script:', error);
+        });
+      });
+    }
+
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', () => {
+        if (window.electronAPI && window.electronAPI.executeWebviewScript) {
+          window.electronAPI.executeWebviewScript('location.reload();');
+        }
+      });
+    }
+  } else if (moduleId === 'novel') {
+    // 小说模块控制栏
+    controlBar.innerHTML = `
+      <button class="module-control-btn" id="novel-refresh-btn">🔄 刷新</button>
+      <button class="module-control-btn" id="novel-back-btn">← 返回</button>
+      <button class="module-control-btn" id="novel-forward-btn">→ 前进</button>
+    `;
+    controlBar.classList.add('show');
+
+    // 绑定事件
+    const refreshBtn = document.getElementById('novel-refresh-btn');
+    const backBtn = document.getElementById('novel-back-btn');
+    const forwardBtn = document.getElementById('novel-forward-btn');
+
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', () => {
+        if (window.electronAPI && window.electronAPI.executeWebviewScript) {
+          window.electronAPI.executeWebviewScript('location.reload();');
+        }
+      });
+    }
+
+    if (backBtn) {
+      backBtn.addEventListener('click', () => {
+        if (window.electronAPI && window.electronAPI.executeWebviewScript) {
+          window.electronAPI.executeWebviewScript('window.history.back();');
+        }
+      });
+    }
+
+    if (forwardBtn) {
+      forwardBtn.addEventListener('click', () => {
+        if (window.electronAPI && window.electronAPI.executeWebviewScript) {
+          window.electronAPI.executeWebviewScript('window.history.forward();');
+        }
+      });
+    }
+  } else {
+    // 其他模块，隐藏控制栏
+    controlBar.classList.remove('show');
   }
 }
 

@@ -32,7 +32,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   triggerWebviewFullscreen: () => ipcRenderer.send('trigger-webview-fullscreen'),
   
   // 切换webview开发者工具
-  toggleWebviewDevtools: () => ipcRenderer.send('toggle-webview-devtools')
+  toggleWebviewDevtools: () => ipcRenderer.send('toggle-webview-devtools'),
+  
+  // 模块控制操作
+  navigateWebview: (url) => ipcRenderer.send('navigate-webview', url),
+  executeWebviewScript: (script) => ipcRenderer.invoke('execute-webview-script', script)
 });
 
 

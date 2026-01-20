@@ -750,6 +750,49 @@ ipcMain.on('toggle-webview-devtools', () => {
   }
 });
 
+// IPC 处理：导航webview
+ipcMain.on('navigate-webview', (event, url) => {
+  console.log(`[Webview] Navigating to: ${url}`);
+  if (webviewContents.length > 0) {
+    const webContents = webviewContents[0];
+    webContents.loadURL(url);
+  } else {
+    console.log(`[Webview] No webview found to navigate`);
+  }
+});
+
+// IPC 处理：在webview中执行脚本
+ipcMain.handle('execute-webview-script', async (event, script) => {
+  console.log(`[Webview] ========== Executing script in webview ==========`);
+  console.log(`[Webview] Webview count: ${webviewContents.length}`);
+  
+  if (webviewContents.length > 0) {
+    const webContents = webviewContents[0];
+    console.log(`[Webview] Webview URL: ${webContents.getURL()}`);
+    console.log(`[Webview] Webview is loading: ${webContents.isLoading()}`);
+    console.log(`[Webview] Script length: ${script.length} characters`);
+    
+    try {
+      console.log(`[Webview] Executing JavaScript script...`);
+      const result = await webContents.executeJavaScript(script);
+      console.log(`[Webview] Script executed successfully`);
+      console.log(`[Webview] Result:`, result);
+      console.log(`[Webview] ===========================================`);
+      return { success: true, result: result };
+    } catch (error) {
+      console.error(`[Webview] Error executing script:`, error);
+      console.error(`[Webview] Error message:`, error.message);
+      console.error(`[Webview] Error stack:`, error.stack);
+      console.log(`[Webview] ===========================================`);
+      return { success: false, error: error.message };
+    }
+  } else {
+    console.log(`[Webview] No webview found to execute script`);
+    console.log(`[Webview] ===========================================`);
+    return { success: false, error: 'No webview found' };
+  }
+});
+
 
 // IPC 处理：鼠标中键按下
 ipcMain.on('middle-button-pressed', () => {
