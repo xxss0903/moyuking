@@ -419,37 +419,62 @@ function createOverlayWindow() {
   });
 }
 
-app.whenReady().then(() => {
-  // 先初始化配置，确保所有配置都已加载
-  console.log(`[App] Application ready, initializing configuration...`);
-  initializeConfig();
-  console.log(`[App] Configuration initialized, creating window...`);
-  
-  // 配置加载完成后再创建窗口
-  createWindow();
+// 确保应用只能开启一次（单实例）
+const gotTheLock = app.requestSingleInstanceLock();
 
-  // 注册全局快捷键：手动显示/隐藏主窗口（绕过手势，用于自用调试）
-  globalShortcut.register('CommandOrControl+Shift+M', () => {
-    if (!mainWindow) {
-      createWindow();
-      return;
-    }
-
-    if (mainWindow.isVisible()) {
-      mainWindow.hide();
-    } else {
-      if (mainWindow.isMinimized()) mainWindow.restore();
+if (!gotTheLock) {
+  // 如果获取锁失败，说明已有实例在运行，退出当前实例
+  console.log(`[App] Another instance is already running, exiting...`);
+  app.quit();
+} else {
+  // 监听第二个实例启动事件
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    console.log(`[App] Second instance detected, focusing existing window...`);
+    // 如果主窗口存在，激活它
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
       mainWindow.show();
       mainWindow.focus();
-    }
-  });
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    } else {
+      // 如果窗口不存在，创建新窗口
       createWindow();
     }
   });
-});
+
+  app.whenReady().then(() => {
+    // 先初始化配置，确保所有配置都已加载
+    console.log(`[App] Application ready, initializing configuration...`);
+    initializeConfig();
+    console.log(`[App] Configuration initialized, creating window...`);
+    
+    // 配置加载完成后再创建窗口
+    createWindow();
+
+    // 注册全局快捷键：手动显示/隐藏主窗口（绕过手势，用于自用调试）
+    globalShortcut.register('CommandOrControl+Shift+M', () => {
+      if (!mainWindow) {
+        createWindow();
+        return;
+      }
+
+      if (mainWindow.isVisible()) {
+        mainWindow.hide();
+      } else {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    });
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+      }
+    });
+  });
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
