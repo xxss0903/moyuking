@@ -48,5 +48,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openLocalNovelFile: (options) => ipcRenderer.invoke('open-local-novel-file', options)
 });
 
+// 全局事件：转发主进程的窗口状态事件到渲染进程（作为自定义事件）
+ipcRenderer.on('app-hidden', () => {
+  try {
+    window.dispatchEvent(new CustomEvent('app-hidden'));
+  } catch (e) {
+    console.log('[Preload] Failed to dispatch app-hidden event:', e.message);
+  }
+});
+
+ipcRenderer.on('app-shown', () => {
+  try {
+    window.dispatchEvent(new CustomEvent('app-shown'));
+  } catch (e) {
+    console.log('[Preload] Failed to dispatch app-shown event:', e.message);
+  }
+});
+
 
 

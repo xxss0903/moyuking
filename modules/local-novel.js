@@ -154,8 +154,9 @@ module.exports = {
             return;
           }
 
-          const baseStep = 1; // 基础步长（像素）
-          const stepFactor = 1; // 每档速度增加的倍数
+          // 调慢整体速度：基础步长减小，档位增量减小
+          const baseStep = 0.5; // 基础步长（像素）
+          const stepFactor = 0.5; // 每档速度增加的倍数
 
           let speedValue = 3;
           if (speedRange) {
@@ -172,6 +173,7 @@ module.exports = {
             toggleScrollBtn.style.background = '#dc3545';
           }
 
+          // 间隔也稍微拉长一点，整体更平滑、更慢
           window.__localNovelAutoScrollTimer = setInterval(() => {
             if (!window.__localNovelAutoScrollEnabled || !readerEl) return;
             const maxScroll = readerEl.scrollHeight - readerEl.clientHeight;
@@ -179,9 +181,18 @@ module.exports = {
               // 到达当前页底部：如果还有下一页，自动翻页并继续滚动；否则停止
               const state = window.__localNovelState;
               if (state && Array.isArray(state.pages) && state.currentPage < state.pages.length - 1) {
+                const wasAuto = window.__localNovelAutoScrollEnabled;
                 state.currentPage += 1;
                 console.log('[Local Novel] Reached bottom, auto go to next page:', state.currentPage + 1);
+                // 先停止当前滚动，再翻页
+                stopAutoScroll();
                 renderPage();
+                // 如果之前是自动滚动状态，延迟 1s 再继续自动滚动
+                if (wasAuto) {
+                  setTimeout(() => {
+                    startAutoScroll();
+                  }, 1000);
+                }
               } else {
                 console.log('[Local Novel] Reached last page bottom, stop auto scroll');
                 stopAutoScroll();
@@ -189,7 +200,7 @@ module.exports = {
               }
             }
             readerEl.scrollTop += step;
-          }, 50);
+          }, 80);
         }
 
         if (speedRange) {
@@ -214,10 +225,16 @@ module.exports = {
             const state = window.__localNovelState;
             if (!state || !Array.isArray(state.pages) || state.pages.length === 0) return;
             if (state.currentPage > 0) {
+              const wasAuto = window.__localNovelAutoScrollEnabled;
               state.currentPage -= 1;
               console.log('[Local Novel] Go to prev page:', state.currentPage + 1);
               stopAutoScroll();
               renderPage();
+              if (wasAuto) {
+                setTimeout(() => {
+                  startAutoScroll();
+                }, 1000);
+              }
             }
           });
         }
@@ -227,10 +244,16 @@ module.exports = {
             const state = window.__localNovelState;
             if (!state || !Array.isArray(state.pages) || state.pages.length === 0) return;
             if (state.currentPage < state.pages.length - 1) {
+              const wasAuto = window.__localNovelAutoScrollEnabled;
               state.currentPage += 1;
               console.log('[Local Novel] Go to next page:', state.currentPage + 1);
               stopAutoScroll();
               renderPage();
+              if (wasAuto) {
+                setTimeout(() => {
+                  startAutoScroll();
+                }, 1000);
+              }
             }
           });
         }
@@ -295,6 +318,31 @@ module.exports = {
             alert('读取本地小说文件时出错：' + (error && error.message ? error.message : String(error)));
           }
         }
+
+        // 记录隐藏前是否在自动滚动状态
+        window.__localNovelWasAutoBeforeHide = false;
+
+        // 应用隐藏时，暂停自动滚动并记录状态
+        window.addEventListener('app-hidden', () => {
+          if (window.__localNovelAutoScrollEnabled) {
+            console.log('[Local Novel] App hidden, pause auto scroll');
+            window.__localNovelWasAutoBeforeHide = true;
+            stopAutoScroll();
+          } else {
+            window.__localNovelWasAutoBeforeHide = false;
+          }
+        });
+
+        // 应用重新显示时，如果之前在自动滚动，延迟 1s 再继续
+        window.addEventListener('app-shown', () => {
+          if (window.__localNovelWasAutoBeforeHide) {
+            console.log('[Local Novel] App shown, will resume auto scroll after 1s');
+            window.__localNovelWasAutoBeforeHide = false;
+            setTimeout(() => {
+              startAutoScroll();
+            }, 1000);
+          }
+        });
 
         if (importBtn) {
           importBtn.addEventListener('click', async () => {

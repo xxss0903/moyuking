@@ -229,10 +229,28 @@ function createWindow() {
     } else {
       videoPausedByAutoHide = false;
     }
+
+    // 通知渲染进程应用已隐藏（用于本地小说等模块暂停自动行为）
+    try {
+      if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('app-hidden');
+      }
+    } catch (e) {
+      console.log('[Window] Failed to send app-hidden event:', e.message);
+    }
   });
 
   mainWindow.on('show', () => {
     console.log(`[Window] Main window shown`);
+
+    // 通知渲染进程应用已显示
+    try {
+      if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('app-shown');
+      }
+    } catch (e) {
+      console.log('[Window] Failed to send app-shown event:', e.message);
+    }
     // 只有在之前是由自动隐藏逻辑暂停过视频时，才尝试自动恢复播放
     if (AUTO_PAUSE_ON_HIDE && videoPausedByAutoHide) {
       console.log(`[Window] Auto pause on hide is enabled and video was paused by auto hide, will try to resume video after 500ms...`);
