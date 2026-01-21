@@ -7,6 +7,14 @@
       <button class="module-control-btn" @click="triggerPageFullscreen">⛶ 页面全屏</button>
       <button class="module-control-btn" @click="refresh">🔄 刷新</button>
     </template>
+
+    <!-- 小红书模块控制栏 -->
+    <template v-else-if="moduleId === 'xiaohongshu'">
+      <button class="module-control-btn" @click="goHomeXhs">🏠 主页</button>
+      <button class="module-control-btn" @click="goBack">← 返回</button>
+      <button class="module-control-btn" @click="goForward">→ 前进</button>
+      <button class="module-control-btn" @click="refresh">🔄 刷新</button>
+    </template>
     
     <!-- 小说模块控制栏 -->
     <template v-else-if="moduleId === 'novel'">
@@ -31,12 +39,18 @@ const props = defineProps({
 const electronAPI = useElectronAPI();
 
 const showControlBar = computed(() => {
-  return props.moduleId === 'douyin' || props.moduleId === 'novel';
+  return props.moduleId === 'douyin' || props.moduleId === 'xiaohongshu' || props.moduleId === 'novel';
 });
 
 const goHome = () => {
   if (electronAPI) {
     electronAPI.navigateWebview('https://www.douyin.com/');
+  }
+};
+
+const goHomeXhs = () => {
+  if (electronAPI) {
+    electronAPI.navigateWebview('https://www.xiaohongshu.com/');
   }
 };
 
