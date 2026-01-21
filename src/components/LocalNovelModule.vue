@@ -4,76 +4,84 @@
     class="local-novel-container"
   >
     <div class="local-novel-toolbar">
-      <div class="title">本地小说阅读器</div>
-      <button class="primary-btn" @click="onImportClick">📂 导入本地小说文件</button>
-      <span class="file-name" :title="filePath || '未选择文件'">
-        {{ fileName || '未选择文件' }}
-      </span>
-      <div class="spacer"></div>
-      <div class="toolbar-group">
-        <span>编码</span>
-        <select v-model="encoding" class="encoding-select" @change="onEncodingChange">
-          <option value="utf-8">UTF-8</option>
-          <option value="gbk">GBK(简体中文常见)</option>
-        </select>
-      </div>
-      <div class="toolbar-group">
-        <span>自动滚动</span>
-        <button
-          class="toggle-btn"
-          :class="{ active: autoScrollEnabled }"
-          @click="toggleAutoScroll"
-        >
-          {{ autoScrollEnabled ? '暂停' : '开始' }}
+      <div class="toolbar-header">
+        <div class="title">本地小说阅读器</div>
+        <button class="primary-btn" @click="onImportClick">📂 导入本地小说文件</button>
+        <span class="file-name" :title="filePath || '未选择文件'">
+          {{ fileName || '未选择文件' }}
+        </span>
+        <div class="spacer"></div>
+        <button class="settings-toggle-btn" @click="settingsExpanded = !settingsExpanded">
+          {{ settingsExpanded ? '收起设置 ▲' : '展开设置 ▼' }}
         </button>
       </div>
-      <div class="toolbar-group">
-        <span>速度</span>
-        <input
-          v-model.number="speed"
-          type="range"
-          min="1"
-          max="10"
-          class="speed-range"
-        />
-        <span class="speed-label">{{ speed }}</span>
-      </div>
-      <div class="toolbar-group">
-        <span>每页字数</span>
-        <select v-model.number="pageSize" class="page-size-select" @change="onPageSizeChange">
-          <option :value="1000">1000</option>
-          <option :value="1500">1500</option>
-          <option :value="2000">2000</option>
-          <option :value="2500">2500</option>
-          <option :value="3000">3000</option>
-        </select>
-      </div>
-      <div class="toolbar-group">
-        <span>字号</span>
-        <input
-          v-model.number="fontSize"
-          type="number"
-          min="10"
-          max="28"
-          class="font-size-input"
-        />
-        <span class="unit-label">px</span>
-      </div>
-      <div class="toolbar-group">
-        <label class="bold-toggle">
-          <input type="checkbox" v-model="isBold" />
-          加粗
-        </label>
-      </div>
-      <div class="toolbar-group">
-        <span>字体</span>
-        <select v-model="fontFamily" class="font-family-select">
-          <option value="'Microsoft YaHei', sans-serif">雅黑</option>
-          <option value="'PingFang SC', sans-serif">苹方</option>
-          <option value="'SimSun', serif">宋体</option>
-          <option value="'SimHei', sans-serif">黑体</option>
-          <option value="system">系统默认</option>
-        </select>
+
+      <div v-if="settingsExpanded" class="toolbar-settings">
+        <div class="toolbar-group">
+          <span>编码</span>
+          <select v-model="encoding" class="encoding-select" @change="onEncodingChange">
+            <option value="utf-8">UTF-8</option>
+            <option value="gbk">GBK(简体中文常见)</option>
+          </select>
+        </div>
+        <div class="toolbar-group">
+          <span>自动滚动</span>
+          <button
+            class="toggle-btn"
+            :class="{ active: autoScrollEnabled }"
+            @click="toggleAutoScroll"
+          >
+            {{ autoScrollEnabled ? '暂停' : '开始' }}
+          </button>
+        </div>
+        <div class="toolbar-group">
+          <span>速度</span>
+          <input
+            v-model.number="speed"
+            type="range"
+            min="1"
+            max="10"
+            class="speed-range"
+          />
+          <span class="speed-label">{{ speed }}</span>
+        </div>
+        <div class="toolbar-group">
+          <span>每页字数</span>
+          <select v-model.number="pageSize" class="page-size-select" @change="onPageSizeChange">
+            <option :value="1000">1000</option>
+            <option :value="1500">1500</option>
+            <option :value="2000">2000</option>
+            <option :value="2500">2500</option>
+            <option :value="3000">3000</option>
+          </select>
+        </div>
+        <div class="toolbar-group">
+          <span>字号</span>
+          <input
+            v-model.number="fontSize"
+            type="number"
+            min="10"
+            max="28"
+            class="font-size-input"
+          />
+          <span class="unit-label">px</span>
+        </div>
+        <div class="toolbar-group">
+          <label class="bold-toggle">
+            <input type="checkbox" v-model="isBold" />
+            加粗
+          </label>
+        </div>
+        <div class="toolbar-group">
+          <span>字体</span>
+          <select v-model="fontFamily" class="font-family-select">
+            <option value="'Microsoft YaHei', sans-serif">雅黑</option>
+            <option value="'PingFang SC', sans-serif">苹方</option>
+            <option value="'SimSun', serif">宋体</option>
+            <option value="'SimHei', sans-serif">黑体</option>
+            <option value="system">系统默认</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -126,6 +134,16 @@
         </button>
       </div>
     </div>
+
+    <!-- 右下角悬浮的自动滚动播放/暂停按钮（固定在本地小说容器右下角） -->
+    <button
+      class="auto-scroll-floating-btn"
+      :class="{ active: autoScrollEnabled }"
+      @click="toggleAutoScroll"
+      title="自动滚动播放/暂停"
+    >
+      {{ autoScrollEnabled ? '⏸ 暂停自动滚动' : '▶ 开始自动滚动' }}
+    </button>
   </div>
 </template>
 
@@ -160,6 +178,7 @@ const speed = ref(3);
 const fontSize = ref(14);
 const isBold = ref(false);
 const fontFamily = ref('system');
+const settingsExpanded = ref(false);
 
 const totalPages = computed(() => pages.value.length);
 const currentPageContent = computed(() => {
@@ -519,6 +538,7 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  position: relative; /* 作为悬浮按钮的定位参考 */
 }
 
 .local-novel-toolbar {
@@ -531,11 +551,23 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: #444;
+}
+
+.toolbar-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-settings {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
-  color: #444;
 }
 
 .title {
@@ -564,6 +596,15 @@ onBeforeUnmount(() => {
 
 .spacer {
   flex: 1 1 auto;
+}
+
+.settings-toggle-btn {
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  background: #f8f9fa;
+  cursor: pointer;
+  font-size: 12px;
 }
 
 .toolbar-group {
@@ -699,6 +740,27 @@ onBeforeUnmount(() => {
   font-size: 12px;
   border-radius: 4px;
   border: 1px solid #ddd;
+}
+
+.auto-scroll-floating-btn {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 6px 10px;
+  border-radius: 16px;
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.auto-scroll-floating-btn.active {
+  background: rgba(40, 167, 69, 0.9);
 }
 </style>
 
