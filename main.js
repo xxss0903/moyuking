@@ -1,6 +1,7 @@
 const { app, BrowserWindow, globalShortcut, ipcMain, screen, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const iconv = require('iconv-lite');
 const { loadConfig, updateConfig, getConfig, setConfig, readConfigFile, getConfigFilePath } = require('./config');
 const packageJson = require('./package.json');
 
@@ -967,27 +968,39 @@ ipcMain.handle('check-for-updates', async () => {
 });
 
 // IPC 处理：打开本地小说文件
-ipcMain.handle('open-local-novel-file', async () => {
+// options: { encoding?: 'utf-8' | 'gbk', filePath?: string }
+ipcMain.handle('open-local-novel-file', async (event, options = {}) => {
   try {
-    const result = await dialog.showOpenDialog({
-      title: '选择本地小说文件',
-      filters: [
-        { name: '小说/文本文件', extensions: ['txt', 'md', 'log', 'text'] },
-        { name: '所有文件', extensions: ['*'] }
-      ],
-      properties: ['openFile']
-    });
+    const encoding = (options && options.encoding) || 'utf-8';
+    let filePath = options && options.filePath;
 
-    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
-      return { success: false, canceled: true };
+    // 如果没有传入 filePath，则弹出选择框
+    if (!filePath) {
+      const result = await dialog.showOpenDialog({
+        title: '选择本地小说文件',
+        filters: [
+          { name: '小说/文本文件', extensions: ['txt', 'md', 'log', 'text'] },
+          { name: '所有文件', extensions: ['*'] }
+        ],
+        properties: ['openFile']
+      });
+
+      if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+        return { success: false, canceled: true };
+      }
+
+      filePath = result.filePaths[0];
     }
 
-    const filePath = result.filePaths[0];
     let content = '';
 
     try {
-      // 目前按 UTF-8 文本读取，如果后续需要支持 GBK 等编码，可以再扩展
-      content = fs.readFileSync(filePath, 'utf-8');
+      const buffer = fs.readFileSync(filePath);
+      if (encoding === 'gbk') {
+        content = iconv.decode(buffer, 'gbk');
+      } else {
+        content = buffer.toString('utf-8');
+      }
     } catch (readError) {
       console.error('[Local Novel] Failed to read file:', readError);
       return { success: false, error: readError.message || String(readError) };
@@ -996,7 +1009,8 @@ ipcMain.handle('open-local-novel-file', async () => {
     return {
       success: true,
       filePath,
-      content
+      content,
+      encoding
     };
   } catch (error) {
     console.error('[Local Novel] Error in open-local-novel-file handler:', error);

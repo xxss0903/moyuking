@@ -43,8 +43,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 重启应用
   restartApp: () => ipcRenderer.send('restart-app'),
 
-  // 本地小说：打开本地小说文件
-  openLocalNovelFile: () => ipcRenderer.invoke('open-local-novel-file')
+  // 本地小说：打开 / 重新读取本地小说文件（可指定编码和已选路径）
+  // options: { encoding?: 'utf-8' | 'gbk', filePath?: string }
+  openLocalNovelFile: (options) => ipcRenderer.invoke('open-local-novel-file', options)
 });
 
 
