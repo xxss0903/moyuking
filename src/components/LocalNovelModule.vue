@@ -38,6 +38,33 @@
         />
         <span class="speed-label">{{ speed }}</span>
       </div>
+      <div class="toolbar-group">
+        <span>字号</span>
+        <input
+          v-model.number="fontSize"
+          type="number"
+          min="10"
+          max="28"
+          class="font-size-input"
+        />
+        <span class="unit-label">px</span>
+      </div>
+      <div class="toolbar-group">
+        <label class="bold-toggle">
+          <input type="checkbox" v-model="isBold" />
+          加粗
+        </label>
+      </div>
+      <div class="toolbar-group">
+        <span>字体</span>
+        <select v-model="fontFamily" class="font-family-select">
+          <option value="'Microsoft YaHei', sans-serif">雅黑</option>
+          <option value="'PingFang SC', sans-serif">苹方</option>
+          <option value="'SimSun', serif">宋体</option>
+          <option value="'SimHei', sans-serif">黑体</option>
+          <option value="system">系统默认</option>
+        </select>
+      </div>
     </div>
 
     <div class="local-novel-reader" ref="readerRef">
@@ -48,6 +75,7 @@
       <div
         v-else
         class="novel-content"
+        :style="contentStyle"
       >
         {{ currentPageContent }}
       </div>
@@ -119,12 +147,28 @@ let saveStateTimer = null;
 let wasAutoBeforeHide = false;
 
 const speed = ref(3);
+const fontSize = ref(14);
+const isBold = ref(false);
+const fontFamily = ref('system');
 
 const totalPages = computed(() => pages.value.length);
 const currentPageContent = computed(() => {
   if (!pages.value.length) return '';
   const idx = Math.min(Math.max(currentPageIndex.value, 0), pages.value.length - 1);
   return pages.value[idx];
+});
+
+const contentStyle = computed(() => {
+  const family =
+    fontFamily.value === 'system'
+      ? "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif"
+      : fontFamily.value;
+
+  return {
+    fontSize: `${fontSize.value || 14}px`,
+    fontWeight: isBold.value ? '600' : '400',
+    fontFamily: family
+  };
 });
 
 function buildPages(text) {
@@ -501,6 +545,34 @@ onBeforeUnmount(() => {
 .speed-label {
   min-width: 16px;
   text-align: center;
+}
+
+.font-size-input {
+  width: 52px;
+  padding: 2px 4px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+}
+
+.unit-label {
+  font-size: 12px;
+  color: #666;
+}
+
+.bold-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.font-family-select {
+  padding: 2px 6px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
 }
 
 .local-novel-reader {
