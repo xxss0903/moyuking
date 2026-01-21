@@ -41,6 +41,30 @@
           </div>
         </div>
 
+        <!-- 窗口透明度设置（整行：标题 + tip + 输入框） -->
+        <div class="setting-item">
+          <div class="setting-label">
+            <span class="setting-label-text">
+              窗口透明度
+              <span 
+                class="setting-help" 
+                title="设置整个应用窗口的透明度，范围 0.2（较透明）~ 1.0（不透明）"
+              >?</span>
+            </span>
+            <div class="setting-control" style="margin-top: 0;">
+              <input 
+                type="number" 
+                class="input-control" 
+                v-model.number="config.windowOpacity"
+                min="0.2" 
+                max="1" 
+                step="0.05"
+                @change="updateWindowOpacity"
+              >
+            </div>
+          </div>
+        </div>
+
         <!-- 默认固定状态 -->
         <div class="setting-item">
           <div class="setting-label">
@@ -201,6 +225,7 @@ const version = ref('1.0.0');
 const config = ref({
   windowPosition: 'top-right',
   defaultPinned: false,
+  windowOpacity: 1,
   hideDelayOnMouseLeave: 0,
   mouseEnterLeaveWindow: 3000,
   mouseEnterLeaveThreshold: 5,
@@ -235,6 +260,7 @@ const loadConfig = async () => {
     config.value = {
       windowPosition: allConfig.windowPosition || 'top-right',
       defaultPinned: allConfig.defaultPinned || false,
+      windowOpacity: typeof allConfig.windowOpacity === 'number' ? allConfig.windowOpacity : 1,
       hideDelayOnMouseLeave: (allConfig.hideDelayOnMouseLeave || 0) / 1000, // 毫秒转秒
       mouseEnterLeaveWindow: (allConfig.mouseEnterLeaveWindow || 3000) / 1000, // 毫秒转秒
       mouseEnterLeaveThreshold: allConfig.mouseEnterLeaveThreshold || 5,
@@ -276,6 +302,14 @@ const updateHideDelay = async (e) => {
   // 将秒转换为毫秒保存
   const valueInMs = Math.round(valueInSeconds * 1000);
   await updateConfig('hideDelayOnMouseLeave', valueInMs);
+};
+
+const updateWindowOpacity = async (e) => {
+  const value = parseFloat(e.target.value);
+  // 默认值 1.0，并限制在 0.2 ~ 1.0 范围内
+  const clamped = isNaN(value) ? 1.0 : Math.min(1.0, Math.max(0.2, value));
+  config.value.windowOpacity = clamped;
+  await updateConfig('windowOpacity', clamped);
 };
 
 const updateEnterLeaveWindow = async (e) => {

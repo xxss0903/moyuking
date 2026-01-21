@@ -42,6 +42,7 @@ let MOUSE_ENTER_LEAVE_THRESHOLD = 5; // 次数阈值（从配置文件加载）
 let AUTO_PAUSE_ON_HIDE = true; // 从配置文件加载
 let resumeVideoTimer = null; // 窗口显示后延迟恢复视频的计时器
 let videoPausedByAutoHide = false; // 记录是否由自动隐藏逻辑暂停了视频
+let WINDOW_OPACITY = 1.0; // 窗口透明度（从配置文件加载，0.2 ~ 1.0）
 
 // 加载所有可用模块
 function loadModules() {
@@ -117,6 +118,9 @@ function initializeConfig() {
   MOUSE_ENTER_LEAVE_WINDOW = config.mouseEnterLeaveWindow || 3000;
   MOUSE_ENTER_LEAVE_THRESHOLD = config.mouseEnterLeaveThreshold || 5;
   AUTO_PAUSE_ON_HIDE = config.autoPauseOnHide !== false; // 默认开启
+  // 窗口透明度（限制在 0.2 ~ 1.0 之间，避免完全透明导致看不见）
+  const opacity = typeof config.windowOpacity === 'number' ? config.windowOpacity : 1.0;
+  WINDOW_OPACITY = Math.min(1.0, Math.max(0.2, opacity));
   
   console.log(`[Config] Window pinned state: ${isWindowPinned}`);
   console.log(`[Config] Middle button hold time: ${MIDDLE_BUTTON_HOLD_TIME}ms`);
@@ -124,6 +128,7 @@ function initializeConfig() {
   console.log(`[Config] Mouse enter/leave window: ${MOUSE_ENTER_LEAVE_WINDOW}ms`);
   console.log(`[Config] Mouse enter/leave threshold: ${MOUSE_ENTER_LEAVE_THRESHOLD}`);
   console.log(`[Config] Auto pause on hide: ${AUTO_PAUSE_ON_HIDE}`);
+  console.log(`[Config] Window opacity: ${WINDOW_OPACITY}`);
   console.log(`[Config] ================================================`);
   
   return config;
@@ -149,7 +154,7 @@ function createWindow() {
     minWidth: 360,
     minHeight: 640,
     frame: false,
-    transparent: false,
+    transparent: true,
     alwaysOnTop: true,
     skipTaskbar: true,
     webPreferences: {
@@ -160,6 +165,16 @@ function createWindow() {
       webviewTag: true
     }
   });
+
+  // 应用窗口透明度
+  try {
+    if (typeof WINDOW_OPACITY === 'number') {
+      mainWindow.setOpacity(WINDOW_OPACITY);
+      console.log(`[Window] Applied opacity: ${WINDOW_OPACITY}`);
+    }
+  } catch (e) {
+    console.log('[Window] Failed to set opacity:', e.message);
+  }
 
   // 根据环境加载不同的文件
   const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
@@ -710,7 +725,9 @@ function startMouseMonitor() {
       
       // 确保覆盖窗口可见且可以接收鼠标事件（用于中键解锁）
       if (overlayWindow) {
-        overlayWindow.setIgnoreMouseEvents(false);
+        // 覆盖窗口保持“穿透点击”，同时通过 forward: true 仍然可以收到鼠标事件
+        // 这样在应用隐藏时，不会阻挡下面应用的点击
+        overlayWindow.setIgnoreMouseEvents(true, { forward: true });
         overlayWindow.show();
       }
     } else if (!inside && isMouseInsideWindow) {
@@ -892,6 +909,20 @@ ipcMain.handle('set-config', (event, key, value) => {
   if (key === 'autoPauseOnHide') {
     AUTO_PAUSE_ON_HIDE = value !== false;
     console.log(`[Config] Auto pause on hide updated: ${AUTO_PAUSE_ON_HIDE}`);
+  }
+
+  // 如果修改了窗口透明度，立即应用到主窗口
+  if (key === 'windowOpacity') {
+    const opacity = typeof value === 'number' ? value : 1.0;
+    WINDOW_OPACITY = Math.min(1.0, Math.max(0.2, opacity));
+    if (mainWindow) {
+      try {
+        mainWindow.setOpacity(WINDOW_OPACITY);
+        console.log(`[Config] Window opacity updated and applied: ${WINDOW_OPACITY}`);
+      } catch (e) {
+        console.log('[Config] Failed to set window opacity:', e.message);
+      }
+    }
   }
   
   // 如果修改了鼠标进入/离开解锁配置，立即重新加载

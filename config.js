@@ -14,6 +14,7 @@ const defaultConfig = {
   windowBounds: null, // 窗口位置和大小（用于恢复）
   isWindowPinned: false, // 窗口是否固定（固定后鼠标移出不会隐藏）
   autoHideOnMouseLeave: true, // 鼠标移出窗口时是否自动隐藏（与 isWindowPinned 相反，但保留用于兼容）
+  windowOpacity: 1.0, // 窗口不透明度（0.2 ~ 1.0）
   
   // 解锁相关
   unlockMethod: 'middle-button', // 解锁方式：'middle-button' (鼠标中键长按)
