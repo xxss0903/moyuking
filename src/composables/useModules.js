@@ -20,7 +20,8 @@ export function useModules() {
       // 默认模块
       availableModules.value = [
         { id: 'douyin', name: '抖音', icon: '📱', description: '刷抖音短视频' },
-        { id: 'novel', name: '看小说', icon: '📚', description: '阅读网络小说' }
+        { id: 'novel', name: '看小说', icon: '📚', description: '阅读网络小说' },
+        { id: 'local-novel', name: '本地小说', icon: '📖', description: '导入本地 txt 等小说文件阅读' }
       ];
     }
   };

@@ -41,7 +41,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   executeWebviewScript: (script) => ipcRenderer.invoke('execute-webview-script', script),
 
   // 重启应用
-  restartApp: () => ipcRenderer.send('restart-app')
+  restartApp: () => ipcRenderer.send('restart-app'),
+
+  // 本地小说：打开本地小说文件
+  openLocalNovelFile: () => ipcRenderer.invoke('open-local-novel-file')
 });
 
 

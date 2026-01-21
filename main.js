@@ -1,4 +1,4 @@
-const { app, BrowserWindow, globalShortcut, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, screen, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { loadConfig, updateConfig, getConfig, setConfig, readConfigFile, getConfigFilePath } = require('./config');
@@ -964,6 +964,44 @@ ipcMain.handle('check-for-updates', async () => {
   console.log(`[Update] Current version: ${packageJson.version}`);
   // 这里可以添加实际的更新检查逻辑
   return { hasUpdate: false, latestVersion: packageJson.version };
+});
+
+// IPC 处理：打开本地小说文件
+ipcMain.handle('open-local-novel-file', async () => {
+  try {
+    const result = await dialog.showOpenDialog({
+      title: '选择本地小说文件',
+      filters: [
+        { name: '小说/文本文件', extensions: ['txt', 'md', 'log', 'text'] },
+        { name: '所有文件', extensions: ['*'] }
+      ],
+      properties: ['openFile']
+    });
+
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+      return { success: false, canceled: true };
+    }
+
+    const filePath = result.filePaths[0];
+    let content = '';
+
+    try {
+      // 目前按 UTF-8 文本读取，如果后续需要支持 GBK 等编码，可以再扩展
+      content = fs.readFileSync(filePath, 'utf-8');
+    } catch (readError) {
+      console.error('[Local Novel] Failed to read file:', readError);
+      return { success: false, error: readError.message || String(readError) };
+    }
+
+    return {
+      success: true,
+      filePath,
+      content
+    };
+  } catch (error) {
+    console.error('[Local Novel] Error in open-local-novel-file handler:', error);
+    return { success: false, error: error.message || String(error) };
+  }
 });
 
 // IPC 处理：触发webview全屏
