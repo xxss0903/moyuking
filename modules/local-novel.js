@@ -84,6 +84,7 @@ module.exports = {
           pageSize: 2000, // 每页字符数，后续可做成配置
           currentPage: 0
         };
+        window.__localNovelSaveTimer = null;
 
         function buildPages(text) {
           const state = window.__localNovelState;
@@ -128,6 +129,29 @@ module.exports = {
           }
         }
 
+        function scheduleSaveState() {
+          if (!window.electronAPI || !window.electronAPI.setConfig) return;
+          if (window.__localNovelSaveTimer) {
+            clearTimeout(window.__localNovelSaveTimer);
+          }
+          window.__localNovelSaveTimer = setTimeout(async () => {
+            try {
+              const state = window.__localNovelState;
+              if (!state || !state.filePath) return;
+              const payload = {
+                filePath: state.filePath,
+                encoding: state.encoding,
+                currentPage: state.currentPage,
+                scrollTop: readerEl ? readerEl.scrollTop : 0
+              };
+              await window.electronAPI.setConfig('localNovelLastState', payload);
+              console.log('[Local Novel] Reading state saved:', payload);
+            } catch (e) {
+              console.log('[Local Novel] Failed to save reading state:', e && e.message);
+            }
+          }, 500);
+        }
+
         function updateSpeedLabel() {
           if (speedRange && speedLabel) {
             speedLabel.textContent = speedRange.value;
@@ -154,9 +178,9 @@ module.exports = {
             return;
           }
 
-          // 调慢整体速度：基础步长减小，档位增量减小
-          const baseStep = 0.5; // 基础步长（像素）
-          const stepFactor = 0.5; // 每档速度增加的倍数
+          // 更细腻的速度：更小步长 + 更高刷新频率
+          const baseStep = 0.2; // 基础步长（像素）
+          const stepFactor = 0.2; // 每档速度增加的倍数
 
           let speedValue = 3;
           if (speedRange) {
@@ -173,7 +197,7 @@ module.exports = {
             toggleScrollBtn.style.background = '#dc3545';
           }
 
-          // 间隔也稍微拉长一点，整体更平滑、更慢
+          // 更短的间隔实现更平滑的滚动
           window.__localNovelAutoScrollTimer = setInterval(() => {
             if (!window.__localNovelAutoScrollEnabled || !readerEl) return;
             const maxScroll = readerEl.scrollHeight - readerEl.clientHeight;
@@ -187,6 +211,7 @@ module.exports = {
                 // 先停止当前滚动，再翻页
                 stopAutoScroll();
                 renderPage();
+                scheduleSaveState();
                 // 如果之前是自动滚动状态，延迟 1s 再继续自动滚动
                 if (wasAuto) {
                   setTimeout(() => {
@@ -200,7 +225,7 @@ module.exports = {
               }
             }
             readerEl.scrollTop += step;
-          }, 80);
+          }, 30);
         }
 
         if (speedRange) {
@@ -230,6 +255,7 @@ module.exports = {
               console.log('[Local Novel] Go to prev page:', state.currentPage + 1);
               stopAutoScroll();
               renderPage();
+              scheduleSaveState();
               if (wasAuto) {
                 setTimeout(() => {
                   startAutoScroll();
@@ -249,6 +275,7 @@ module.exports = {
               console.log('[Local Novel] Go to next page:', state.currentPage + 1);
               stopAutoScroll();
               renderPage();
+              scheduleSaveState();
               if (wasAuto) {
                 setTimeout(() => {
                   startAutoScroll();
@@ -313,6 +340,7 @@ module.exports = {
               readerEl.scrollTop = 0;
             }
             stopAutoScroll();
+            scheduleSaveState();
           } catch (error) {
             console.error('[Local Novel] Error while loading local novel:', error);
             alert('读取本地小说文件时出错：' + (error && error.message ? error.message : String(error)));
@@ -360,6 +388,30 @@ module.exports = {
             await loadFileWithEncoding({ encoding, filePath: state.filePath });
           });
         }
+
+        // 启动时尝试恢复上次阅读进度
+        (async () => {
+          try {
+            if (!window.electronAPI || !window.electronAPI.getConfig) return;
+            const saved = await window.electronAPI.getConfig('localNovelLastState');
+            if (!saved || !saved.filePath) return;
+            const encoding = saved.encoding || 'utf-8';
+            console.log('[Local Novel] Restoring last reading state:', saved);
+            await loadFileWithEncoding({ encoding, filePath: saved.filePath });
+            const state = window.__localNovelState;
+            if (state && Array.isArray(state.pages) && typeof saved.currentPage === 'number') {
+              if (saved.currentPage >= 0 && saved.currentPage < state.pages.length) {
+                state.currentPage = saved.currentPage;
+                renderPage();
+              }
+            }
+            if (readerEl && typeof saved.scrollTop === 'number') {
+              readerEl.scrollTop = saved.scrollTop;
+            }
+          } catch (e) {
+            console.log('[Local Novel] Failed to restore last reading state:', e && e.message);
+          }
+        })();
 
         console.log('[Local Novel] Init script finished');
       })();

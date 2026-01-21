@@ -25,7 +25,20 @@
       @show-settings="showSettingsPanel = true"
     />
     <ModuleControlBar :module-id="currentModuleId" />
+
+    <!-- 使用 Vue 实现的模块（目前：网络小说模块） -->
+    <div
+      v-if="isVueModule"
+      id="vue-module-container"
+      :class="{ 'with-control-bar': showControlBar }"
+      style="position: absolute; top: 36px; left: 0; right: 0; bottom: 0;"
+    >
+      <WebNovelModule v-if="currentModuleId === 'novel'" />
+    </div>
+
+    <!-- 传统模块容器（通过 modules/*.js 提供 HTML + initScript，如抖音、本地小说等） -->
     <div 
+      v-else
       id="module-container" 
       ref="moduleContainer"
       :class="{ 'with-control-bar': showControlBar }"
@@ -48,6 +61,7 @@ import Toolbar from './components/Toolbar.vue';
 import ModuleControlBar from './components/ModuleControlBar.vue';
 import ModulePanel from './components/ModulePanel.vue';
 import SettingsPanel from './components/SettingsPanel.vue';
+import WebNovelModule from './components/WebNovelModule.vue';
 import { useModules } from './composables/useModules';
 
 const { 
@@ -65,12 +79,21 @@ const showModulePanel = ref(false);
 const showSettingsPanel = ref(false);
 const moduleContainer = ref(null);
 
+const vueModuleIds = ['novel']; // 目前只有网络小说模块使用 Vue，后续抖音等也可以加入
+
 const showControlBar = computed(() => {
   return currentModuleId.value === 'douyin' || currentModuleId.value === 'novel';
 });
 
+const isVueModule = computed(() => vueModuleIds.includes(currentModuleId.value));
+
 // 加载模块内容到容器
 const loadModuleContent = async (moduleData) => {
+  // 对于使用 Vue 编写的模块（如 novel），不再通过 innerHTML 注入内容
+  if (isVueModule.value) {
+    return;
+  }
+
   if (!moduleContainer.value || !moduleData || !moduleData.content) return;
   
   // 清空容器
