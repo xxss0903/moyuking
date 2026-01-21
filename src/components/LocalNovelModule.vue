@@ -171,6 +171,7 @@ const currentPageIndex = ref(0);
 const autoScrollEnabled = ref(false);
 let autoScrollTimer = null; // 用于保存 requestAnimationFrame 的 id
 let lastTimestamp = null;
+let scrollPosition = null; // 单独维护一个浮点滚动位置，避免 scrollTop 取整导致低速不动
 let saveStateTimer = null;
 let wasAutoBeforeHide = false;
 
@@ -282,6 +283,7 @@ function stopAutoScroll() {
     autoScrollTimer = null;
   }
   lastTimestamp = null;
+  scrollPosition = null;
   autoScrollEnabled.value = false;
 }
 
@@ -290,16 +292,18 @@ function internalStartAutoScroll() {
 
   stopAutoScroll();
 
-  // 使用基于时间的速度映射，保证低速也能平顺滚动
-  // 速度单位：像素/秒，1 档约 20px/s，10 档约 200px/s
-  const baseSpeed = 30;
-  const speedFactor = 30;
+  // 初始化内部滚动位置（使用浮点数累积，避免小于 1px 的步长被舍弃）
+  scrollPosition = readerRef.value.scrollTop || 0;
 
   let speedValue = speed.value || 3;
   if (speedValue < 1) speedValue = 1;
   if (speedValue > 10) speedValue = 10;
 
-  const speedPerSecond = baseSpeed + (speedValue - 1) * speedFactor;
+  // 设计一条更符合直觉的非线性速度曲线（单位：像素/秒）
+  // 1: 15（极慢）  2: 25（很慢） 3: 35  4: 50  5: 70
+  // 6: 90         7: 110        8: 130 9: 150 10: 170（最快但仍可阅读）
+  const speedLevels = [0, 15, 25, 35, 50, 70, 90, 110, 130, 150, 170];
+  const speedPerSecond = speedLevels[speedValue] || 70;
   console.log('[LocalNovelVue] Start auto scroll, speed level:', speedValue, 'speed(px/s):', speedPerSecond);
 
   autoScrollEnabled.value = true;
@@ -318,7 +322,7 @@ function internalStartAutoScroll() {
 
     const maxScroll = readerRef.value.scrollHeight - readerRef.value.clientHeight;
 
-    if (readerRef.value.scrollTop >= maxScroll) {
+    if (scrollPosition >= maxScroll) {
       // 到达当前页底部：如果还有下一页，自动翻页并继续滚动；否则停止
       if (currentPageIndex.value < pages.value.length - 1) {
         const wasAuto = autoScrollEnabled.value;
@@ -341,7 +345,12 @@ function internalStartAutoScroll() {
     }
 
     const delta = speedPerSecond * deltaSec;
-    readerRef.value.scrollTop += delta;
+    // 使用内部浮点位置累积，再一次性赋值给 scrollTop，避免因取整导致的小步长“卡住”
+    scrollPosition += delta;
+    if (scrollPosition > maxScroll) {
+      scrollPosition = maxScroll;
+    }
+    readerRef.value.scrollTop = scrollPosition;
 
     autoScrollTimer = requestAnimationFrame(stepFrame);
   };
