@@ -39,6 +39,16 @@
         <span class="speed-label">{{ speed }}</span>
       </div>
       <div class="toolbar-group">
+        <span>每页字数</span>
+        <select v-model.number="pageSize" class="page-size-select" @change="onPageSizeChange">
+          <option :value="1000">1000</option>
+          <option :value="1500">1500</option>
+          <option :value="2000">2000</option>
+          <option :value="2500">2500</option>
+          <option :value="3000">3000</option>
+        </select>
+      </div>
+      <div class="toolbar-group">
         <span>字号</span>
         <input
           v-model.number="fontSize"
@@ -198,6 +208,32 @@ async function renderPage() {
   }
 }
 
+function rebuildPagesWithNewSize() {
+  if (!fullText.value) return;
+  const currentPos = currentPageIndex.value * (pageSize.value || 2000);
+  const text = fullText.value;
+
+  // 重新分页
+  pages.value = [];
+  if (pageSize.value <= 0) {
+    pageSize.value = 2000;
+  }
+  const size = pageSize.value;
+  for (let i = 0; i < text.length; i += size) {
+    pages.value.push(text.slice(i, i + size));
+  }
+
+  // 尝试恢复大致阅读位置
+  const approxIndex = Math.floor(currentPos / size);
+  if (approxIndex < 0) {
+    currentPageIndex.value = 0;
+  } else if (approxIndex >= pages.value.length) {
+    currentPageIndex.value = pages.value.length - 1;
+  } else {
+    currentPageIndex.value = approxIndex;
+  }
+}
+
 function scheduleSaveState() {
   if (!electronAPI || !electronAPI.setConfig) return;
   if (saveStateTimer) {
@@ -209,6 +245,7 @@ function scheduleSaveState() {
       const payload = {
         filePath: filePath.value,
         encoding: encoding.value,
+        pageSize: pageSize.value,
         currentPage: currentPageIndex.value,
         scrollTop: readerRef.value ? readerRef.value.scrollTop : 0
       };
@@ -236,8 +273,8 @@ function internalStartAutoScroll() {
 
   // 使用基于时间的速度映射，保证低速也能平顺滚动
   // 速度单位：像素/秒，1 档约 20px/s，10 档约 200px/s
-  const baseSpeed = 20;
-  const speedFactor = 20;
+  const baseSpeed = 30;
+  const speedFactor = 30;
 
   let speedValue = speed.value || 3;
   if (speedValue < 1) speedValue = 1;
@@ -399,6 +436,21 @@ function onPageSelect() {
   });
 }
 
+function onPageSizeChange() {
+  if (!pages.value.length || !fullText.value) return;
+  const wasAuto = autoScrollEnabled.value;
+  stopAutoScroll();
+  rebuildPagesWithNewSize();
+  renderPage().then(() => {
+    scheduleSaveState();
+    if (wasAuto) {
+      setTimeout(() => {
+        internalStartAutoScroll();
+      }, 1000);
+    }
+  });
+}
+
 onMounted(async () => {
   // 尝试恢复上次阅读进度
   try {
@@ -407,6 +459,9 @@ onMounted(async () => {
       if (saved && saved.filePath) {
         console.log('[LocalNovelVue] Restoring last reading state:', saved);
         encoding.value = saved.encoding || 'utf-8';
+        if (saved.pageSize && typeof saved.pageSize === 'number') {
+          pageSize.value = saved.pageSize;
+        }
         await loadFileWithEncoding({ encoding: encoding.value, filePath: saved.filePath });
         if (pages.value.length && typeof saved.currentPage === 'number') {
           if (saved.currentPage >= 0 && saved.currentPage < pages.value.length) {
@@ -633,6 +688,13 @@ onBeforeUnmount(() => {
 }
 
 .page-select {
+  padding: 2px 6px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+}
+
+.page-size-select {
   padding: 2px 6px;
   font-size: 12px;
   border-radius: 4px;
