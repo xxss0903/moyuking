@@ -14,7 +14,19 @@ export function useModules() {
     
     try {
       const modules = await electronAPI.getAvailableModules();
-      availableModules.value = modules;
+      const list = Array.isArray(modules) ? [...modules] : [];
+
+      // 确保 Vue 模块（本地小说）在列表中，即使不再由 modules 目录提供
+      if (!list.find(m => m.id === 'local-novel')) {
+        list.push({
+          id: 'local-novel',
+          name: '本地小说',
+          icon: '📖',
+          description: '导入本地 txt 等小说文件阅读'
+        });
+      }
+
+      availableModules.value = list;
     } catch (error) {
       console.error('加载模块列表失败:', error);
       // 默认模块
@@ -40,12 +52,15 @@ export function useModules() {
     }
   };
 
+  // 使用 Vue 的模块（不依赖 modules/*.js 提供 content/initScript）
+  const vueModuleIds = ['novel', 'local-novel'];
+
   // 切换模块
   const switchModule = async (moduleId) => {
     if (!electronAPI) return;
 
-    // 销毁当前模块
-    if (currentModule.value && currentModule.value.destroyScript) {
+    // 销毁当前模块（仅对非 Vue 模块执行 destroyScript）
+    if (!vueModuleIds.includes(currentModuleId.value) && currentModule.value && currentModule.value.destroyScript) {
       try {
         eval(currentModule.value.destroyScript);
       } catch (error) {
@@ -53,8 +68,19 @@ export function useModules() {
       }
     }
 
+    // Vue 模块不再从主进程加载 HTML / 脚本，仅更新当前模块 ID 和名称
+    if (vueModuleIds.includes(moduleId)) {
+      currentModuleId.value = moduleId;
+      currentModule.value = null;
+
+      const module = availableModules.value.find(m => m.id === moduleId);
+      currentModuleName.value = module ? module.icon + ' ' + module.name : '';
+
+      return null;
+    }
+
     try {
-      // 从主进程加载模块
+      // 从主进程加载非 Vue 模块（如抖音等）
       const moduleData = await electronAPI.loadModule(moduleId);
       
       if (moduleData && moduleData.content) {

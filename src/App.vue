@@ -26,7 +26,7 @@
     />
     <ModuleControlBar :module-id="currentModuleId" />
 
-    <!-- 使用 Vue 实现的模块（目前：网络小说模块） -->
+    <!-- 使用 Vue 实现的模块（网络小说 / 本地小说等） -->
     <div
       v-if="isVueModule"
       id="vue-module-container"
@@ -34,6 +34,7 @@
       style="position: absolute; top: 36px; left: 0; right: 0; bottom: 0;"
     >
       <WebNovelModule v-if="currentModuleId === 'novel'" />
+      <LocalNovelModule v-else-if="currentModuleId === 'local-novel'" />
     </div>
 
     <!-- 传统模块容器（通过 modules/*.js 提供 HTML + initScript，如抖音、本地小说等） -->
@@ -62,6 +63,7 @@ import ModuleControlBar from './components/ModuleControlBar.vue';
 import ModulePanel from './components/ModulePanel.vue';
 import SettingsPanel from './components/SettingsPanel.vue';
 import WebNovelModule from './components/WebNovelModule.vue';
+import LocalNovelModule from './components/LocalNovelModule.vue';
 import { useModules } from './composables/useModules';
 
 const { 
@@ -79,7 +81,8 @@ const showModulePanel = ref(false);
 const showSettingsPanel = ref(false);
 const moduleContainer = ref(null);
 
-const vueModuleIds = ['novel']; // 目前只有网络小说模块使用 Vue，后续抖音等也可以加入
+// 使用 Vue 的模块（网络小说、本地小说等）；后续抖音也可以加入
+const vueModuleIds = ['novel', 'local-novel'];
 
 const showControlBar = computed(() => {
   return currentModuleId.value === 'douyin' || currentModuleId.value === 'novel';

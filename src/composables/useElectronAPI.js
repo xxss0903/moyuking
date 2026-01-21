@@ -48,7 +48,10 @@ export function useElectronAPI() {
     executeWebviewScript: (script) => electronAPI.executeWebviewScript(script),
 
     // 重启应用
-    restartApp: () => electronAPI.restartApp()
+    restartApp: () => electronAPI.restartApp(),
+
+    // 本地小说：打开 / 重新读取本地小说文件
+    openLocalNovelFile: (options) => electronAPI.openLocalNovelFile(options)
   };
 }
 
