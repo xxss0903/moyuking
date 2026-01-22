@@ -16,7 +16,7 @@ export function useModules() {
       const modules = await electronAPI.getAvailableModules();
       const list = Array.isArray(modules) ? [...modules] : [];
 
-      // 确保 Vue 模块（抖音 / 小红书 / 本地小说）在列表中，即使不再由 modules 目录提供
+      // 确保 Vue 模块（抖音 / 小红书 / 浏览器 / 本地小说）在列表中，即使不再由 modules 目录提供
       if (!list.find(m => m.id === 'douyin')) {
         list.push({
           id: 'douyin',
@@ -32,6 +32,15 @@ export function useModules() {
           name: '小红书',
           icon: '📕',
           description: '刷小红书笔记'
+        });
+      }
+
+      if (!list.find(m => m.id === 'browser')) {
+        list.push({
+          id: 'browser',
+          name: '浏览器',
+          icon: '🌐',
+          description: '输入网址或搜索关键字进行浏览'
         });
       }
 
@@ -71,7 +80,7 @@ export function useModules() {
   };
 
   // 使用 Vue 的模块（不依赖 modules/*.js 提供 content/initScript）
-  const vueModuleIds = ['douyin', 'xiaohongshu', 'novel', 'local-novel'];
+  const vueModuleIds = ['douyin', 'xiaohongshu', 'browser', 'novel', 'local-novel'];
 
   // 切换模块
   const switchModule = async (moduleId) => {

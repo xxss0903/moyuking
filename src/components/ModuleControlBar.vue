@@ -22,6 +22,14 @@
       <button class="module-control-btn" @click="goBack">← 返回</button>
       <button class="module-control-btn" @click="goForward">→ 前进</button>
     </template>
+
+    <!-- 浏览器模块控制栏 -->
+    <template v-else-if="moduleId === 'browser'">
+      <button class="module-control-btn" @click="goHomeBrowser">🏠 主页</button>
+      <button class="module-control-btn" @click="goBack">← 返回</button>
+      <button class="module-control-btn" @click="goForward">→ 前进</button>
+      <button class="module-control-btn" @click="refresh">🔄 刷新</button>
+    </template>
   </div>
 </template>
 
@@ -39,7 +47,12 @@ const props = defineProps({
 const electronAPI = useElectronAPI();
 
 const showControlBar = computed(() => {
-  return props.moduleId === 'douyin' || props.moduleId === 'xiaohongshu' || props.moduleId === 'novel';
+  return (
+    props.moduleId === 'douyin' ||
+    props.moduleId === 'xiaohongshu' ||
+    props.moduleId === 'browser' ||
+    props.moduleId === 'novel'
+  );
 });
 
 const goHome = () => {
@@ -51,6 +64,17 @@ const goHome = () => {
 const goHomeXhs = () => {
   if (electronAPI) {
     electronAPI.navigateWebview('https://www.xiaohongshu.com/');
+  }
+};
+
+const goHomeBrowser = () => {
+  if (electronAPI) {
+    electronAPI.getConfig('browserHomeUrl').then((home) => {
+      const url = typeof home === 'string' && home.trim() ? home : 'https://www.baidu.com/';
+      electronAPI.navigateWebview(url);
+    }).catch(() => {
+      electronAPI.navigateWebview('https://www.baidu.com/');
+    });
   }
 };
 
