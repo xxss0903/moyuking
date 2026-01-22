@@ -42,6 +42,7 @@
             min="1"
             max="10"
             class="speed-range"
+            @change="saveFontSettings"
           />
           <span class="speed-label">{{ speed }}</span>
         </div>
@@ -63,18 +64,19 @@
             min="10"
             max="28"
             class="font-size-input"
+            @change="saveFontSettings"
           />
           <span class="unit-label">px</span>
         </div>
         <div class="toolbar-group">
           <label class="bold-toggle">
-            <input type="checkbox" v-model="isBold" />
+            <input type="checkbox" v-model="isBold" @change="saveFontSettings" />
             加粗
           </label>
         </div>
         <div class="toolbar-group">
           <span>字体</span>
-          <select v-model="fontFamily" class="font-family-select">
+          <select v-model="fontFamily" class="font-family-select" @change="saveFontSettings">
             <option value="'Microsoft YaHei', sans-serif">雅黑</option>
             <option value="'PingFang SC', sans-serif">苹方</option>
             <option value="'SimSun', serif">宋体</option>
@@ -180,6 +182,56 @@ const fontSize = ref(14);
 const isBold = ref(false);
 const fontFamily = ref('system');
 const settingsExpanded = ref(false);
+
+// 保存字体设置到配置
+async function saveFontSettings() {
+  if (!electronAPI || !electronAPI.setConfig) return;
+  try {
+    const settings = {
+      fontSize: fontSize.value,
+      isBold: isBold.value,
+      fontFamily: fontFamily.value,
+      pageSize: pageSize.value,
+      speed: speed.value,
+      encoding: encoding.value
+    };
+    await electronAPI.setConfig('localNovelSettings', settings);
+    console.log('[LocalNovelVue] Font settings saved:', settings);
+  } catch (e) {
+    console.error('[LocalNovelVue] Failed to save font settings:', e);
+  }
+}
+
+// 加载字体设置
+async function loadFontSettings() {
+  if (!electronAPI || !electronAPI.getConfig) return;
+  try {
+    const saved = await electronAPI.getConfig('localNovelSettings');
+    if (saved) {
+      if (typeof saved.fontSize === 'number' && saved.fontSize >= 10 && saved.fontSize <= 28) {
+        fontSize.value = saved.fontSize;
+      }
+      if (typeof saved.isBold === 'boolean') {
+        isBold.value = saved.isBold;
+      }
+      if (typeof saved.fontFamily === 'string') {
+        fontFamily.value = saved.fontFamily;
+      }
+      if (typeof saved.pageSize === 'number' && saved.pageSize > 0) {
+        pageSize.value = saved.pageSize;
+      }
+      if (typeof saved.speed === 'number' && saved.speed >= 1 && saved.speed <= 10) {
+        speed.value = saved.speed;
+      }
+      if (typeof saved.encoding === 'string' && (saved.encoding === 'utf-8' || saved.encoding === 'gbk')) {
+        encoding.value = saved.encoding;
+      }
+      console.log('[LocalNovelVue] Font settings loaded:', saved);
+    }
+  } catch (e) {
+    console.error('[LocalNovelVue] Failed to load font settings:', e);
+  }
+}
 
 const totalPages = computed(() => pages.value.length);
 const currentPageContent = computed(() => {
@@ -411,6 +463,7 @@ function onEncodingChange() {
   if (!filePath.value) return;
   const enc = encoding.value || 'utf-8';
   console.log('[LocalNovelVue] Encoding changed, reload file with encoding:', enc);
+  saveFontSettings(); // 保存设置
   loadFileWithEncoding({ encoding: enc, filePath: filePath.value });
 }
 
@@ -471,6 +524,7 @@ function onPageSizeChange() {
   rebuildPagesWithNewSize();
   renderPage().then(() => {
     scheduleSaveState();
+    saveFontSettings(); // 保存设置
     if (wasAuto) {
       setTimeout(() => {
         internalStartAutoScroll();
@@ -480,15 +534,25 @@ function onPageSizeChange() {
 }
 
 onMounted(async () => {
+  // 先加载字体设置（包括 encoding 和 pageSize）
+  await loadFontSettings();
+  
   // 尝试恢复上次阅读进度
   try {
     if (electronAPI && electronAPI.getConfig) {
       const saved = await electronAPI.getConfig('localNovelLastState');
       if (saved && saved.filePath) {
         console.log('[LocalNovelVue] Restoring last reading state:', saved);
-        encoding.value = saved.encoding || 'utf-8';
-        if (saved.pageSize && typeof saved.pageSize === 'number') {
-          pageSize.value = saved.pageSize;
+        // encoding 和 pageSize 已经在 loadFontSettings 中加载了（如果配置中有的话）
+        // 如果字体设置中没有这些值（保持默认值），则使用阅读状态中的值
+        const fontSettings = await electronAPI.getConfig('localNovelSettings');
+        if (!fontSettings || !fontSettings.encoding) {
+          encoding.value = saved.encoding || 'utf-8';
+        }
+        if (!fontSettings || !fontSettings.pageSize) {
+          if (saved.pageSize && typeof saved.pageSize === 'number' && saved.pageSize > 0) {
+            pageSize.value = saved.pageSize;
+          }
         }
         await loadFileWithEncoding({ encoding: encoding.value, filePath: saved.filePath });
         if (pages.value.length && typeof saved.currentPage === 'number') {
