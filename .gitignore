@@ -21,3 +21,11 @@ Thumbs.db
 
 # Electron
 *.asar
+
+# Config files (user-specific)
+moyu_config.json
+*.config.json
+
+# Environment
+.env
+.env.local
