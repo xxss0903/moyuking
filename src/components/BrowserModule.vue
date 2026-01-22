@@ -52,6 +52,22 @@
         >
           {{ isPhoneMode ? '📱 手机模式' : '💻 桌面模式' }}
         </button>
+        <div v-if="isPhoneMode" class="device-size-wrapper">
+          <select 
+            v-model="selectedDeviceSize" 
+            class="device-size-select"
+            @change="onDeviceSizeChange"
+            title="选择设备尺寸"
+          >
+            <option 
+              v-for="device in deviceSizes" 
+              :key="device.id"
+              :value="device.id"
+            >
+              {{ device.name }} ({{ device.width }}px)
+            </option>
+          </select>
+        </div>
       </div>
       <div v-if="presets.length > 0" class="presets-quick">
         <span class="presets-label">快速访问：</span>
@@ -101,9 +117,13 @@
       <webview
         id="browser-webview"
         ref="webviewRef"
-        :key="`webview-${isPhoneMode ? 'phone' : 'desktop'}`"
+        :key="`webview-${isPhoneMode ? 'phone' : 'desktop'}-${selectedDeviceSize}`"
         class="browser-webview"
-        :class="{ 'phone-mode': isPhoneMode }"
+        :class="{ 
+          'phone-mode': isPhoneMode,
+          [`device-${selectedDeviceSize}`]: isPhoneMode
+        }"
+        :style="isPhoneMode ? { maxWidth: currentDeviceWidth + 'px' } : {}"
         :src="currentWebviewUrl"
         allowpopups
         webpreferences="nodeIntegration=no,contextIsolation=yes,javascript=yes"
@@ -114,7 +134,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useElectronAPI } from '../composables/useElectronAPI';
 
 const electronAPI = useElectronAPI();
@@ -127,7 +147,29 @@ const currentWebviewUrl = ref(DEFAULT_HOME);
 const presets = ref([]);
 const showPresetsDropdown = ref(false);
 const isPhoneMode = ref(false);
+const selectedDeviceSize = ref('iphone-14');
 const webviewRef = ref(null);
+
+// 设备尺寸定义
+const deviceSizes = [
+  // iPhone 系列
+  { id: 'iphone-se', name: 'iPhone SE', width: 375, type: 'phone', ua: 'iphone' },
+  { id: 'iphone-12', name: 'iPhone 12/13', width: 390, type: 'phone', ua: 'iphone' },
+  { id: 'iphone-14', name: 'iPhone 14', width: 390, type: 'phone', ua: 'iphone' },
+  { id: 'iphone-14-pro', name: 'iPhone 14 Pro', width: 393, type: 'phone', ua: 'iphone' },
+  { id: 'iphone-14-pro-max', name: 'iPhone 14 Pro Max', width: 430, type: 'phone', ua: 'iphone' },
+  { id: 'iphone-15-pro-max', name: 'iPhone 15 Pro Max', width: 430, type: 'phone', ua: 'iphone' },
+  // Android 手机
+  { id: 'android-small', name: 'Android 小屏', width: 360, type: 'phone', ua: 'android' },
+  { id: 'android-medium', name: 'Android 中屏', width: 412, type: 'phone', ua: 'android' },
+  { id: 'android-large', name: 'Android 大屏', width: 480, type: 'phone', ua: 'android' },
+  // iPad 系列
+  { id: 'ipad', name: 'iPad', width: 768, type: 'tablet', ua: 'ipad' },
+  { id: 'ipad-pro', name: 'iPad Pro', width: 1024, type: 'tablet', ua: 'ipad' },
+  // Android 平板
+  { id: 'android-tablet', name: 'Android 平板', width: 600, type: 'tablet', ua: 'android' },
+  { id: 'android-tablet-large', name: 'Android 大平板', width: 800, type: 'tablet', ua: 'android' },
+];
 
 // 对话框相关
 const showDialog = ref(false);
@@ -142,13 +184,30 @@ const dialogResolve = ref(null);
 const desktopUserAgent =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 
-// 手机模式 UA (iPhone)
-const phoneUserAgent =
-  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+// 不同设备的 User Agent
+const userAgents = {
+  iphone: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+  android: 'Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36',
+  ipad: 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+};
+
+// 获取当前设备信息
+const currentDevice = computed(() => {
+  return deviceSizes.find(d => d.id === selectedDeviceSize.value) || deviceSizes[0];
+});
+
+// 当前设备宽度
+const currentDeviceWidth = computed(() => {
+  return currentDevice.value.width;
+});
 
 // 当前使用的 UA
 const currentUserAgent = computed(() => {
-  return isPhoneMode.value ? phoneUserAgent : desktopUserAgent;
+  if (!isPhoneMode.value) {
+    return desktopUserAgent;
+  }
+  const device = currentDevice.value;
+  return userAgents[device.ua] || userAgents.iphone;
 });
 
 function normalizeUrl(raw) {
@@ -210,6 +269,25 @@ function togglePhoneMode() {
   
   // 由于使用了 key 属性，Vue 会重新创建 webview，自动应用新的 user agent
   console.log('[BrowserModule] Switched to', isPhoneMode.value ? 'phone' : 'desktop', 'mode');
+}
+
+// 设备尺寸改变
+function onDeviceSizeChange() {
+  // 保存当前 URL
+  const webview = document.querySelector('#browser-webview');
+  if (webview && webview.src && webview.src !== 'about:blank') {
+    currentWebviewUrl.value = webview.src;
+    urlInput.value = webview.src;
+  }
+  
+  // 保存设备尺寸设置
+  if (electronAPI && electronAPI.setConfig) {
+    electronAPI.setConfig('browserDeviceSize', selectedDeviceSize.value).catch(e => {
+      console.error('[BrowserModule] Failed to save device size:', e);
+    });
+  }
+  
+  console.log('[BrowserModule] Device size changed to:', currentDevice.value.name, currentDevice.value.width + 'px');
 }
 
 function openCurrentUrl() {
@@ -385,6 +463,11 @@ onMounted(async () => {
       if (typeof savedPhoneMode === 'boolean') {
         isPhoneMode.value = savedPhoneMode;
       }
+      // 加载设备尺寸设置
+      const savedDeviceSize = await electronAPI.getConfig('browserDeviceSize');
+      if (typeof savedDeviceSize === 'string' && deviceSizes.find(d => d.id === savedDeviceSize)) {
+        selectedDeviceSize.value = savedDeviceSize;
+      }
     } catch (e) {
       console.log('[BrowserModule] Failed to load presets or home url:', e && e.message);
       initialUrl.value = DEFAULT_HOME;
@@ -480,6 +563,33 @@ onUnmounted(() => {
 
 .btn.mode-toggle.active:hover {
   background: #bbdefb;
+}
+
+.device-size-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+.device-size-select {
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  background: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  color: #333;
+  outline: none;
+  transition: all 0.15s;
+  min-width: 180px;
+}
+
+.device-size-select:hover {
+  border-color: #2196f3;
+}
+
+.device-size-select:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 
 .presets-dropdown-wrapper {
@@ -757,11 +867,45 @@ onUnmounted(() => {
 }
 
 .browser-webview.phone-mode {
-  max-width: 414px;
   margin: 0 auto;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
   border-left: 2px solid #333;
   border-right: 2px solid #333;
+  transition: max-width 0.3s ease;
+}
+
+/* 不同设备尺寸的样式 */
+.browser-webview.device-iphone-se {
+  border-radius: 20px;
+}
+
+.browser-webview.device-iphone-12,
+.browser-webview.device-iphone-14 {
+  border-radius: 20px;
+}
+
+.browser-webview.device-iphone-14-pro,
+.browser-webview.device-iphone-14-pro-max,
+.browser-webview.device-iphone-15-pro-max {
+  border-radius: 25px;
+}
+
+.browser-webview.device-android-small,
+.browser-webview.device-android-medium,
+.browser-webview.device-android-large {
+  border-radius: 15px;
+}
+
+.browser-webview.device-ipad,
+.browser-webview.device-ipad-pro {
+  border-radius: 10px;
+  border-left: 3px solid #333;
+  border-right: 3px solid #333;
+}
+
+.browser-webview.device-android-tablet,
+.browser-webview.device-android-tablet-large {
+  border-radius: 10px;
 }
 </style>
 
