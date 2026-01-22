@@ -44,6 +44,14 @@
         />
         <button class="btn primary" @click="openCurrentUrl">打开</button>
         <button class="btn secondary" @click="saveCurrentToPresets">保存为常用</button>
+        <button 
+          class="btn mode-toggle" 
+          :class="{ 'active': isPhoneMode }"
+          @click="togglePhoneMode"
+          :title="isPhoneMode ? '切换到桌面模式' : '切换到手机模式'"
+        >
+          {{ isPhoneMode ? '📱 手机模式' : '💻 桌面模式' }}
+        </button>
       </div>
       <div v-if="presets.length > 0" class="presets-quick">
         <span class="presets-label">快速访问：</span>
@@ -92,18 +100,21 @@
     <div class="browser-webview-wrapper">
       <webview
         id="browser-webview"
+        ref="webviewRef"
+        :key="`webview-${isPhoneMode ? 'phone' : 'desktop'}`"
         class="browser-webview"
-        :src="initialUrl"
+        :class="{ 'phone-mode': isPhoneMode }"
+        :src="currentWebviewUrl"
         allowpopups
         webpreferences="nodeIntegration=no,contextIsolation=yes,javascript=yes"
-        :useragent="userAgent"
+        :useragent="currentUserAgent"
       ></webview>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useElectronAPI } from '../composables/useElectronAPI';
 
 const electronAPI = useElectronAPI();
@@ -112,8 +123,11 @@ const DEFAULT_HOME = 'https://www.baidu.com/';
 
 const urlInput = ref('');
 const initialUrl = ref(DEFAULT_HOME);
+const currentWebviewUrl = ref(DEFAULT_HOME);
 const presets = ref([]);
 const showPresetsDropdown = ref(false);
+const isPhoneMode = ref(false);
+const webviewRef = ref(null);
 
 // 对话框相关
 const showDialog = ref(false);
@@ -124,9 +138,18 @@ const dialogInputValue = ref('');
 const dialogInputRef = ref(null);
 const dialogResolve = ref(null);
 
-// 与其它模块保持一致的 UA
-const userAgent =
+// 桌面模式 UA
+const desktopUserAgent =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+
+// 手机模式 UA (iPhone)
+const phoneUserAgent =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+
+// 当前使用的 UA
+const currentUserAgent = computed(() => {
+  return isPhoneMode.value ? phoneUserAgent : desktopUserAgent;
+});
 
 function normalizeUrl(raw) {
   const text = (raw || '').trim();
@@ -154,6 +177,7 @@ async function openUrl(url) {
   }
 
   urlInput.value = finalUrl;
+  currentWebviewUrl.value = finalUrl;
 
   // 直接操作浏览器模块自己的 webview
   const webview = document.querySelector('#browser-webview');
@@ -164,6 +188,28 @@ async function openUrl(url) {
     console.error('[BrowserModule] Browser webview not found');
     await showConfirmDialog('错误', '无法找到浏览器窗口，请刷新页面');
   }
+}
+
+// 切换手机/桌面模式
+function togglePhoneMode() {
+  // 保存当前 URL
+  const webview = document.querySelector('#browser-webview');
+  if (webview && webview.src && webview.src !== 'about:blank') {
+    currentWebviewUrl.value = webview.src;
+    urlInput.value = webview.src;
+  }
+  
+  isPhoneMode.value = !isPhoneMode.value;
+  
+  // 保存模式设置
+  if (electronAPI && electronAPI.setConfig) {
+    electronAPI.setConfig('browserPhoneMode', isPhoneMode.value).catch(e => {
+      console.error('[BrowserModule] Failed to save phone mode:', e);
+    });
+  }
+  
+  // 由于使用了 key 属性，Vue 会重新创建 webview，自动应用新的 user agent
+  console.log('[BrowserModule] Switched to', isPhoneMode.value ? 'phone' : 'desktop', 'mode');
 }
 
 function openCurrentUrl() {
@@ -317,7 +363,7 @@ function handleClickOutside(event) {
 }
 
 onMounted(async () => {
-  // 加载常用地址列表
+  // 加载常用地址列表和设置
   if (electronAPI && electronAPI.getConfig) {
     try {
       const savedPresets = await electronAPI.getConfig('browserPresets');
@@ -328,18 +374,27 @@ onMounted(async () => {
       if (home && typeof home === 'string') {
         initialUrl.value = home;
         urlInput.value = home;
+        currentWebviewUrl.value = home;
       } else {
         initialUrl.value = DEFAULT_HOME;
         urlInput.value = DEFAULT_HOME;
+        currentWebviewUrl.value = DEFAULT_HOME;
+      }
+      // 加载手机模式设置
+      const savedPhoneMode = await electronAPI.getConfig('browserPhoneMode');
+      if (typeof savedPhoneMode === 'boolean') {
+        isPhoneMode.value = savedPhoneMode;
       }
     } catch (e) {
       console.log('[BrowserModule] Failed to load presets or home url:', e && e.message);
       initialUrl.value = DEFAULT_HOME;
       urlInput.value = DEFAULT_HOME;
+      currentWebviewUrl.value = DEFAULT_HOME;
     }
   } else {
     initialUrl.value = DEFAULT_HOME;
     urlInput.value = DEFAULT_HOME;
+    currentWebviewUrl.value = DEFAULT_HOME;
   }
   
   // 添加点击外部关闭下拉菜单的监听
@@ -403,6 +458,28 @@ onUnmounted(() => {
   background: #f8f9fa;
   border-color: #ddd;
   color: #333;
+}
+
+.btn.mode-toggle {
+  background: #f8f9fa;
+  border-color: #ddd;
+  color: #333;
+  position: relative;
+}
+
+.btn.mode-toggle.active {
+  background: #e3f2fd;
+  border-color: #2196f3;
+  color: #1976d2;
+  font-weight: 500;
+}
+
+.btn.mode-toggle:hover {
+  background: #e9ecef;
+}
+
+.btn.mode-toggle.active:hover {
+  background: #bbdefb;
 }
 
 .presets-dropdown-wrapper {
@@ -676,6 +753,15 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   display: flex;
+  transition: all 0.3s ease;
+}
+
+.browser-webview.phone-mode {
+  max-width: 414px;
+  margin: 0 auto;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+  border-left: 2px solid #333;
+  border-right: 2px solid #333;
 }
 </style>
 
