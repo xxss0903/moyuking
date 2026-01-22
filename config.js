@@ -27,6 +27,7 @@ const defaultConfig = {
   // 启动相关
   showWindowOnStartup: true, // 启动时是否显示窗口（用于指示位置）
   startupDisplayDuration: 3000, // 启动时窗口显示时长（毫秒）
+  isFirstLaunch: true, // 是否是第一次启动（第一次启动时显示窗口且不隐藏）
   
   // 窗口行为相关
   hideDelayOnMouseLeave: 0, // 鼠标移出后隐藏窗口的延迟时间（毫秒），0表示立刻隐藏

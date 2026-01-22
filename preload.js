@@ -1,5 +1,37 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// TextDecoder 解码函数（优先使用原生 API）
+// 如果 TextDecoder 不支持 GBK，则回退到 iconv-lite
+let iconvLite = null;
+try {
+  iconvLite = require('iconv-lite');
+} catch (e) {
+  console.warn('[Preload] iconv-lite not available');
+}
+
+const iconv = (text) => {
+  try {
+    // 方法1: 尝试使用 TextDecoder（原生 API）
+    try {
+      const decoder = new TextDecoder('gbk');
+      return decoder.decode(text);
+    } catch (textDecoderError) {
+      // TextDecoder 不支持 GBK，使用备用方案
+      if (iconvLite) {
+        return iconvLite.decode(text, 'gbk');
+      }
+      throw new Error('Neither TextDecoder nor iconv-lite available');
+    }
+  } catch (error) {
+    console.error('[Preload] GBK decode error:', error.message);
+    // 如果都失败，尝试直接转换为字符串
+    if (text instanceof Buffer) {
+      return text.toString('utf-8');
+    }
+    return String(text);
+  }
+};
+
 // 暴露给网页使用的 API
 contextBridge.exposeInMainWorld('electronAPI', {
   // 窗口控制
@@ -65,5 +97,9 @@ ipcRenderer.on('app-shown', () => {
   }
 });
 
-
-
+// 暴露 iconv 服务到 window.services
+window.services = {
+  iconv: (text) => {
+    return iconv(text);
+  }
+};

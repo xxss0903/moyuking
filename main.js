@@ -1,7 +1,46 @@
 const { app, BrowserWindow, globalShortcut, ipcMain, screen, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const iconv = require('iconv-lite');
+
+// 使用 TextDecoder 进行 GBK 解码（原生 API，优先使用）
+// 如果 TextDecoder 不支持 GBK，则回退到 iconv-lite
+let iconv = null;
+try {
+  iconv = require('iconv-lite');
+} catch (e) {
+  console.warn('[Main] iconv-lite not available, will use TextDecoder only');
+}
+
+// GBK 解码函数
+function decodeGBK(buffer) {
+  try {
+    // 方法1: 尝试使用 TextDecoder（原生 API）
+    try {
+      const decoder = new TextDecoder('gbk');
+      return decoder.decode(buffer);
+    } catch (textDecoderError) {
+      // TextDecoder 不支持 GBK 或失败，尝试方法2
+      console.log('[Main] TextDecoder GBK not supported, trying iconv-lite');
+    }
+    
+    // 方法2: 使用 iconv-lite（备用方案）
+    if (iconv) {
+      return iconv.decode(buffer, 'gbk');
+    }
+    
+    // 方法3: 如果都失败，尝试 UTF-8
+    return buffer.toString('utf-8');
+  } catch (error) {
+    console.error('[Main] GBK decode error:', error.message);
+    // 如果解码失败，尝试使用 UTF-8
+    try {
+      return buffer.toString('utf-8');
+    } catch (e) {
+      return buffer.toString('latin1');
+    }
+  }
+}
+
 const { loadConfig, updateConfig, getConfig, setConfig, readConfigFile, getConfigFilePath } = require('./config');
 const packageJson = require('./package.json');
 
@@ -240,6 +279,7 @@ function createWindow() {
     transparent: true,
     alwaysOnTop: true,
     skipTaskbar: true,
+    show: false, // 先不显示，等加载完成后再显示
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -247,6 +287,77 @@ function createWindow() {
       sandbox: false,
       webviewTag: true
     }
+  });
+  
+  // 监听页面加载错误
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    console.error(`[Window] Failed to load: ${errorCode} - ${errorDescription}`);
+    console.error(`[Window] URL: ${validatedURL}`);
+    // 显示错误页面
+    mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>加载错误</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+          h1 { color: #e74c3c; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>❌ 页面加载失败</h1>
+          <p><strong>错误代码:</strong> ${errorCode}</p>
+          <p><strong>错误描述:</strong> ${errorDescription}</p>
+          <p><strong>URL:</strong> ${validatedURL}</p>
+        </div>
+      </body>
+      </html>
+    `)}`);
+  });
+  
+  // 标记窗口是否应该显示（在页面加载完成后）
+  let shouldShowWindow = false;
+  let windowShown = false;
+  
+  // 显示窗口的辅助函数
+  const showWindowIfNeeded = () => {
+    if (shouldShowWindow && !windowShown && mainWindow) {
+      mainWindow.show();
+      mainWindow.focus();
+      windowShown = true;
+      console.log(`[Window] Window shown`);
+      return true;
+    }
+    return false;
+  };
+  
+  // 监听页面加载完成
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log(`[Window] Page finished loading`);
+    showWindowIfNeeded();
+  });
+  
+  // 监听 DOM 准备完成（更早的事件）
+  mainWindow.webContents.on('dom-ready', () => {
+    console.log(`[Window] DOM ready`);
+    // DOM 准备好后也可以显示窗口
+    showWindowIfNeeded();
+  });
+  
+  // 超时保护：如果 5 秒后页面还没加载完成，也显示窗口
+  setTimeout(() => {
+    if (shouldShowWindow && !windowShown && mainWindow) {
+      console.log(`[Window] Timeout: showing window after 5 seconds (page may still be loading)`);
+      showWindowIfNeeded();
+    }
+  }, 5000);
+  
+  // 监听控制台消息（用于调试）
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    console.log(`[Renderer Console ${level}]: ${message}`);
   });
 
   // 应用窗口透明度
@@ -269,7 +380,71 @@ function createWindow() {
     mainWindow.webContents.openDevTools();
   } else {
     // 生产环境：加载构建后的文件
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    // electron-builder 打包后，文件在 resources/app 目录下
+    // dist 文件夹和 main.js 在同一目录（resources/app）
+    const appPath = app.getAppPath();
+    const possiblePaths = [
+      path.join(__dirname, 'dist/index.html'),           // 打包后的标准路径
+      path.join(appPath, 'dist/index.html'),             // 使用 app.getAppPath()
+      path.join(__dirname, '../dist/index.html'),        // 备用路径
+      path.join(process.resourcesPath, 'app/dist/index.html') // resources 路径
+    ];
+    
+    console.log(`[Window] Production mode - Looking for HTML file`);
+    console.log(`[Window] __dirname: ${__dirname}`);
+    console.log(`[Window] app.getAppPath(): ${appPath}`);
+    console.log(`[Window] process.resourcesPath: ${process.resourcesPath}`);
+    
+    let htmlPath = null;
+    for (const tryPath of possiblePaths) {
+      console.log(`[Window] Checking: ${tryPath}`);
+      if (fs.existsSync(tryPath)) {
+        htmlPath = tryPath;
+        console.log(`[Window] ✓ Found HTML file at: ${htmlPath}`);
+        break;
+      }
+    }
+    
+    if (htmlPath) {
+      mainWindow.loadFile(htmlPath);
+      console.log(`[Window] HTML file loaded successfully`);
+    } else {
+      console.error(`[Window] ✗ HTML file not found in any location`);
+      console.error(`[Window] Tried paths:`, possiblePaths);
+      // 显示错误页面，包含调试信息
+      mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>文件加载失败</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+            .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+            h1 { color: #e74c3c; }
+            .path-list { background: #f8f8f8; padding: 10px; border-radius: 4px; font-family: monospace; }
+            .path-item { margin: 5px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>❌ 文件加载失败</h1>
+            <p>无法找到应用文件，请检查安装是否完整。</p>
+            <h3>调试信息：</h3>
+            <div class="path-list">
+              <div class="path-item"><strong>__dirname:</strong> ${__dirname}</div>
+              <div class="path-item"><strong>app.getAppPath():</strong> ${appPath}</div>
+              <div class="path-item"><strong>process.resourcesPath:</strong> ${process.resourcesPath || 'N/A'}</div>
+            </div>
+            <h3>尝试的路径：</h3>
+            <div class="path-list">
+              ${possiblePaths.map(p => `<div class="path-item">${p}</div>`).join('')}
+            </div>
+          </div>
+        </body>
+        </html>
+      `)}`);
+    }
   }
 
   // 保存窗口位置
@@ -596,19 +771,51 @@ function createWindow() {
   // 从配置文件读取启动显示设置
   const showOnStartup = config.showWindowOnStartup !== false; // 默认 true
   const displayDuration = config.startupDisplayDuration || 3000;
+  const isFirstLaunch = config.isFirstLaunch !== false; // 默认 true，第一次启动
   
+  // 如果是第一次启动，显示窗口且不隐藏（等待页面加载完成）
+  if (isFirstLaunch) {
+    shouldShowWindow = true;
+    console.log(`[Window] First launch detected, window will show after page loads`);
+    // 标记已不是第一次启动
+    updateConfig({ isFirstLaunch: false });
+    console.log(`[Config] First launch flag set to false`);
+    
+    // 如果页面已经加载完成，立即显示
+    if (mainWindow.webContents.isLoading() === false) {
+      mainWindow.show();
+      mainWindow.focus();
+      windowShown = true;
+      console.log(`[Window] Page already loaded, showing window immediately`);
+    }
+    
+    // 固定窗口不需要覆盖窗口
+    if (!isWindowPinned && !KEYBOARD_MODE_ENABLED) {
+      // 非固定窗口且非键盘模式，创建覆盖窗口用于监听鼠标中键
+      createOverlayWindow();
+    }
+  }
   // 如果窗口是固定状态，启动时直接显示，不隐藏
-  if (isWindowPinned) {
-    mainWindow.show();
-    mainWindow.focus();
+  else if (isWindowPinned) {
+    shouldShowWindow = true;
+    if (mainWindow.webContents.isLoading() === false) {
+      mainWindow.show();
+      mainWindow.focus();
+      windowShown = true;
+    }
     console.log(`[Window] Window is pinned, showing on startup (not hidden)`);
     // 固定窗口不需要覆盖窗口来监听鼠标中键
     // createOverlayWindow(); // 注释掉，固定窗口不需要
-  } else if (KEYBOARD_MODE_ENABLED) {
-    // 键盘模式：根据启动设置决定是否显示
+  } 
+  // 键盘模式：显示3秒后隐藏（如果配置允许）
+  else if (KEYBOARD_MODE_ENABLED) {
     if (showOnStartup) {
-      mainWindow.show();
-      mainWindow.focus();
+      shouldShowWindow = true;
+      if (mainWindow.webContents.isLoading() === false) {
+        mainWindow.show();
+        mainWindow.focus();
+        windowShown = true;
+      }
       console.log(`[Window] Keyboard mode enabled, window shown for ${displayDuration}ms`);
       setTimeout(() => {
         if (mainWindow) {
@@ -621,10 +828,15 @@ function createWindow() {
       console.log(`[Window] Keyboard mode enabled, window hidden (use shortcut to show)`);
     }
     // 键盘模式不需要覆盖窗口和鼠标监控
-  } else if (showOnStartup) {
-    // 鼠标模式：启动时先显示窗口，方便用户看到窗口位置，然后隐藏
-    mainWindow.show();
-    mainWindow.focus();
+  } 
+  // 鼠标模式：显示3秒后隐藏（如果配置允许）
+  else if (showOnStartup) {
+    shouldShowWindow = true;
+    if (mainWindow.webContents.isLoading() === false) {
+      mainWindow.show();
+      mainWindow.focus();
+      windowShown = true;
+    }
     console.log(`[Window] Window shown for ${displayDuration}ms to indicate position`);
     console.log(`[Window] Window will hide automatically after ${displayDuration}ms`);
     
@@ -1156,8 +1368,15 @@ ipcMain.handle('open-local-novel-file', async (event, options = {}) => {
 
     try {
       const buffer = fs.readFileSync(filePath);
+      console.log(`[Local Novel] File size: ${buffer.length} bytes, encoding: ${encoding}`);
       if (encoding === 'gbk') {
-        content = iconv.decode(buffer, 'gbk');
+        content = decodeGBK(buffer);
+        console.log(`[Local Novel] GBK decode completed, content length: ${content.length}`);
+        // 检查前100个字符，确保不是乱码
+        if (content.length > 0) {
+          const preview = content.substring(0, Math.min(100, content.length));
+          console.log(`[Local Novel] Content preview (first 100 chars): ${preview}`);
+        }
       } else {
         content = buffer.toString('utf-8');
       }

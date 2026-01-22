@@ -15,15 +15,15 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "vue": "^3.4.0",
-    "iconv-lite": "^0.6.3"
+    "iconv-lite": "^0.6.3",
+    "vue": "^3.4.0"
   },
   "devDependencies": {
-    "electron": "^32.1.0",
-    "vite": "^5.0.0",
     "@vitejs/plugin-vue": "^5.0.0",
-    "vite-plugin-electron": "^0.28.0",
-    "electron-builder": "^24.0.0"
+    "electron": "^32.1.0",
+    "electron-builder": "^24.0.0",
+    "vite": "^5.0.0",
+    "vite-plugin-electron": "^0.28.0"
   },
   "build": {
     "appId": "com.moyu-king.app",
@@ -38,17 +38,30 @@
       "overlay-preload.js",
       "config.js",
       "modules/**/*",
-      "package.json"
+      "package.json",
+      "node_modules/iconv-lite/**/*",
+      "node_modules/safer-buffer/**/*",
+      "!node_modules/**/*",
+      "!src/**/*",
+      "!*.md",
+      "!*.bat",
+      "!vite.config.js",
+      "!create-release.*"
     ],
+    "asar": false,
     "win": {
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -65,5 +78,3 @@
     }
   }
 }
-
-
