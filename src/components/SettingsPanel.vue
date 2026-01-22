@@ -194,6 +194,50 @@
           </div>
         </div>
 
+        <!-- 键盘模式 -->
+        <div class="setting-item">
+          <div class="setting-label">
+            <span class="setting-label-text">
+              启用键盘模式
+              <span 
+                class="setting-help" 
+                title="启用后使用键盘快捷键显示/隐藏窗口，鼠标模式将禁用"
+              >?</span>
+            </span>
+            <div 
+              class="toggle-switch" 
+              :class="{ active: config.keyboardModeEnabled }"
+              @click="toggleKeyboardMode"
+            ></div>
+          </div>
+        </div>
+
+        <!-- 键盘快捷键设置（仅在键盘模式启用时显示） -->
+        <div v-if="config.keyboardModeEnabled" class="setting-item">
+          <div class="setting-label">
+            <span class="setting-label-text">
+              快捷键组合
+              <span 
+                class="setting-help" 
+                title="用于显示/隐藏窗口的快捷键组合，例如：CommandOrControl+Shift+M（Mac: Cmd+Shift+M, Windows: Ctrl+Shift+M）"
+              >?</span>
+            </span>
+            <div class="setting-control" style="margin-top: 0;">
+              <input 
+                type="text" 
+                class="input-control" 
+                v-model="config.keyboardShortcut"
+                placeholder="CommandOrControl+Shift+M"
+                @change="updateKeyboardShortcut"
+                style="width: 200px;"
+              >
+            </div>
+          </div>
+          <div class="setting-note" style="margin-top: 4px; font-size: 11px; color: #999;">
+            提示：使用 + 连接按键，支持 CommandOrControl（Mac 为 Cmd，Windows 为 Ctrl）、Alt、Shift 和字母/数字键
+          </div>
+        </div>
+
         <!-- 配置文件信息 -->
         <!-- <div class="setting-item">
           <div class="setting-label">
@@ -245,7 +289,9 @@ const config = ref({
   mouseEnterLeaveWindow: 3000,
   mouseEnterLeaveThreshold: 5,
   autoPauseOnHide: true,
-  showWindowOnStartup: true
+  showWindowOnStartup: true,
+  keyboardModeEnabled: false,
+  keyboardShortcut: 'CommandOrControl+Shift+M'
 });
 const checkingUpdate = ref(false);
 const updateButtonText = ref('检查更新');
@@ -281,7 +327,9 @@ const loadConfig = async () => {
       mouseEnterLeaveWindow: (allConfig.mouseEnterLeaveWindow || 3000) / 1000, // 毫秒转秒
       mouseEnterLeaveThreshold: allConfig.mouseEnterLeaveThreshold || 5,
       autoPauseOnHide: allConfig.autoPauseOnHide !== false, // 默认开启
-      showWindowOnStartup: allConfig.showWindowOnStartup !== false // 默认开启
+      showWindowOnStartup: allConfig.showWindowOnStartup !== false, // 默认开启
+      keyboardModeEnabled: allConfig.keyboardModeEnabled === true, // 默认关闭
+      keyboardShortcut: allConfig.keyboardShortcut || 'CommandOrControl+Shift+M'
     };
     initialThreshold.value = config.value.mouseEnterLeaveThreshold;
     thresholdChanged.value = false; // 重置标记
@@ -317,6 +365,27 @@ const toggleAutoPauseOnHide = async () => {
   const newValue = !config.value.autoPauseOnHide;
   config.value.autoPauseOnHide = newValue;
   await updateConfig('autoPauseOnHide', newValue);
+};
+
+const toggleKeyboardMode = async () => {
+  const newValue = !config.value.keyboardModeEnabled;
+  config.value.keyboardModeEnabled = newValue;
+  await updateConfig('keyboardModeEnabled', newValue);
+  // 提示用户需要重启应用才能完全生效
+  if (newValue) {
+    alert('键盘模式已启用！\n\n提示：如果鼠标模式正在运行，可能需要重启应用才能完全切换到键盘模式。');
+  }
+};
+
+const updateKeyboardShortcut = async (e) => {
+  const value = e.target.value.trim();
+  if (!value) {
+    config.value.keyboardShortcut = 'CommandOrControl+Shift+M';
+    await updateConfig('keyboardShortcut', 'CommandOrControl+Shift+M');
+    return;
+  }
+  config.value.keyboardShortcut = value;
+  await updateConfig('keyboardShortcut', value);
 };
 
 const updateHideDelay = async (e) => {

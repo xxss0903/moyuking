@@ -45,6 +45,11 @@ let resumeVideoTimer = null; // 窗口显示后延迟恢复视频的计时器
 let videoPausedByAutoHide = false; // 记录是否由自动隐藏逻辑暂停了视频
 let WINDOW_OPACITY = 1.0; // 窗口透明度（从配置文件加载，0.2 ~ 1.0）
 
+// 键盘快捷键相关
+let KEYBOARD_MODE_ENABLED = false; // 是否启用键盘模式
+let KEYBOARD_SHORTCUT = 'CommandOrControl+Shift+M'; // 快捷键组合
+let currentShortcut = null; // 当前注册的快捷键
+
 // 加载所有可用模块
 function loadModules() {
   const modulesDir = path.join(__dirname, 'modules');
@@ -71,6 +76,77 @@ function loadModules() {
 }
 
 let availableModules = loadModules();
+
+// 注册键盘快捷键
+function registerKeyboardShortcut() {
+  // 先注销旧的快捷键
+  if (currentShortcut) {
+    try {
+      globalShortcut.unregister(currentShortcut);
+      console.log(`[Keyboard] Unregistered old shortcut: ${currentShortcut}`);
+    } catch (e) {
+      console.log(`[Keyboard] Failed to unregister old shortcut:`, e.message);
+    }
+    currentShortcut = null;
+  }
+  
+  // 如果键盘模式未启用，不注册快捷键
+  if (!KEYBOARD_MODE_ENABLED) {
+    console.log(`[Keyboard] Keyboard mode is disabled, shortcut not registered`);
+    return;
+  }
+  
+  // 注册新的快捷键
+  try {
+    const shortcut = KEYBOARD_SHORTCUT || 'CommandOrControl+Shift+M';
+    const ret = globalShortcut.register(shortcut, () => {
+      console.log(`[Keyboard] Shortcut triggered: ${shortcut}`);
+      toggleWindowVisibility();
+    });
+    
+    if (ret) {
+      currentShortcut = shortcut;
+      console.log(`[Keyboard] Shortcut registered successfully: ${shortcut}`);
+    } else {
+      console.error(`[Keyboard] Failed to register shortcut: ${shortcut}`);
+    }
+  } catch (e) {
+    console.error(`[Keyboard] Error registering shortcut:`, e.message);
+  }
+}
+
+// 注销键盘快捷键
+function unregisterKeyboardShortcut() {
+  if (currentShortcut) {
+    try {
+      globalShortcut.unregister(currentShortcut);
+      console.log(`[Keyboard] Shortcut unregistered: ${currentShortcut}`);
+      currentShortcut = null;
+    } catch (e) {
+      console.error(`[Keyboard] Failed to unregister shortcut:`, e.message);
+    }
+  }
+}
+
+// 切换窗口显示/隐藏
+function toggleWindowVisibility() {
+  if (!mainWindow) {
+    createWindow();
+    return;
+  }
+
+  if (mainWindow.isVisible()) {
+    mainWindow.hide();
+    console.log(`[Keyboard] Window hidden via shortcut`);
+  } else {
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow.show();
+    mainWindow.focus();
+    console.log(`[Keyboard] Window shown via shortcut`);
+  }
+}
 
 // 设置窗口位置到屏幕角落
 function setWindowPosition(position) {
@@ -123,6 +199,10 @@ function initializeConfig() {
   const opacity = typeof config.windowOpacity === 'number' ? config.windowOpacity : 1.0;
   WINDOW_OPACITY = Math.min(1.0, Math.max(0.2, opacity));
   
+  // 键盘模式配置
+  KEYBOARD_MODE_ENABLED = config.keyboardModeEnabled === true;
+  KEYBOARD_SHORTCUT = config.keyboardShortcut || 'CommandOrControl+Shift+M';
+  
   console.log(`[Config] Window pinned state: ${isWindowPinned}`);
   console.log(`[Config] Middle button hold time: ${MIDDLE_BUTTON_HOLD_TIME}ms`);
   console.log(`[Config] Hide delay on mouse leave: ${config.hideDelayOnMouseLeave || 0}ms`);
@@ -130,6 +210,8 @@ function initializeConfig() {
   console.log(`[Config] Mouse enter/leave threshold: ${MOUSE_ENTER_LEAVE_THRESHOLD}`);
   console.log(`[Config] Auto pause on hide: ${AUTO_PAUSE_ON_HIDE}`);
   console.log(`[Config] Window opacity: ${WINDOW_OPACITY}`);
+  console.log(`[Config] Keyboard mode enabled: ${KEYBOARD_MODE_ENABLED}`);
+  console.log(`[Config] Keyboard shortcut: ${KEYBOARD_SHORTCUT}`);
   console.log(`[Config] ================================================`);
   
   return config;
@@ -522,8 +604,25 @@ function createWindow() {
     console.log(`[Window] Window is pinned, showing on startup (not hidden)`);
     // 固定窗口不需要覆盖窗口来监听鼠标中键
     // createOverlayWindow(); // 注释掉，固定窗口不需要
+  } else if (KEYBOARD_MODE_ENABLED) {
+    // 键盘模式：根据启动设置决定是否显示
+    if (showOnStartup) {
+      mainWindow.show();
+      mainWindow.focus();
+      console.log(`[Window] Keyboard mode enabled, window shown for ${displayDuration}ms`);
+      setTimeout(() => {
+        if (mainWindow) {
+          mainWindow.hide();
+          console.log(`[Window] Window hidden, use keyboard shortcut to show`);
+        }
+      }, displayDuration);
+    } else {
+      mainWindow.hide();
+      console.log(`[Window] Keyboard mode enabled, window hidden (use shortcut to show)`);
+    }
+    // 键盘模式不需要覆盖窗口和鼠标监控
   } else if (showOnStartup) {
-    // 启动时先显示窗口，方便用户看到窗口位置，然后隐藏
+    // 鼠标模式：启动时先显示窗口，方便用户看到窗口位置，然后隐藏
     mainWindow.show();
     mainWindow.focus();
     console.log(`[Window] Window shown for ${displayDuration}ms to indicate position`);
@@ -544,7 +643,12 @@ function createWindow() {
     createOverlayWindow();
   }
 
-  startMouseMonitor();
+  // 只在非键盘模式下启动鼠标监控
+  if (!KEYBOARD_MODE_ENABLED) {
+    startMouseMonitor();
+  } else {
+    console.log(`[Mouse Monitor] Mouse monitor disabled (keyboard mode enabled)`);
+  }
 }
 
 // 创建透明覆盖窗口，用于监听鼠标中键事件
@@ -646,21 +750,8 @@ if (!gotTheLock) {
     // 配置加载完成后再创建窗口
     createWindow();
 
-    // 注册全局快捷键：手动显示/隐藏主窗口（绕过手势，用于自用调试）
-    globalShortcut.register('CommandOrControl+Shift+M', () => {
-      if (!mainWindow) {
-        createWindow();
-        return;
-      }
-
-      if (mainWindow.isVisible()) {
-        mainWindow.hide();
-      } else {
-        if (mainWindow.isMinimized()) mainWindow.restore();
-        mainWindow.show();
-        mainWindow.focus();
-      }
-    });
+    // 注册键盘快捷键（如果启用）
+    registerKeyboardShortcut();
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
@@ -671,9 +762,18 @@ if (!gotTheLock) {
 }
 
 app.on('window-all-closed', () => {
+  // 注销快捷键
+  unregisterKeyboardShortcut();
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+// 应用退出前注销所有快捷键
+app.on('will-quit', () => {
+  unregisterKeyboardShortcut();
+  globalShortcut.unregisterAll();
+  console.log(`[Keyboard] All shortcuts unregistered on app quit`);
 });
 
 
@@ -949,6 +1049,41 @@ ipcMain.handle('set-config', (event, key, value) => {
         console.log('[Config] Failed to set window opacity:', e.message);
       }
     }
+  }
+  
+  // 如果修改了键盘模式或快捷键，重新注册快捷键
+  if (key === 'keyboardModeEnabled' || key === 'keyboardShortcut') {
+    const wasKeyboardMode = KEYBOARD_MODE_ENABLED;
+    if (key === 'keyboardModeEnabled') {
+      KEYBOARD_MODE_ENABLED = value === true;
+    }
+    if (key === 'keyboardShortcut') {
+      KEYBOARD_SHORTCUT = value || 'CommandOrControl+Shift+M';
+    }
+    
+    // 如果从鼠标模式切换到键盘模式，停止鼠标监控和覆盖窗口
+    if (!wasKeyboardMode && KEYBOARD_MODE_ENABLED) {
+      console.log(`[Config] Switching from mouse mode to keyboard mode`);
+      // 停止鼠标监控
+      if (mouseMonitorTimer) {
+        clearInterval(mouseMonitorTimer);
+        mouseMonitorTimer = null;
+        console.log(`[Mouse Monitor] Stopped (keyboard mode enabled)`);
+      }
+      // 隐藏覆盖窗口
+      if (overlayWindow) {
+        overlayWindow.hide();
+        overlayWindow.setIgnoreMouseEvents(true);
+        console.log(`[Overlay] Hidden (keyboard mode enabled)`);
+      }
+    }
+    // 如果从键盘模式切换到鼠标模式，需要重启应用才能完全生效
+    else if (wasKeyboardMode && !KEYBOARD_MODE_ENABLED) {
+      console.log(`[Config] Switching from keyboard mode to mouse mode (may need restart)`);
+    }
+    
+    registerKeyboardShortcut();
+    console.log(`[Config] Keyboard shortcut updated, re-registered`);
   }
   
   // 如果修改了鼠标进入/离开解锁配置，立即重新加载

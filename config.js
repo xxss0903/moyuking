@@ -17,8 +17,12 @@ const defaultConfig = {
   windowOpacity: 1.0, // 窗口不透明度（0.2 ~ 1.0）
   
   // 解锁相关
-  unlockMethod: 'middle-button', // 解锁方式：'middle-button' (鼠标中键长按)
+  unlockMethod: 'middle-button', // 解锁方式：'middle-button' (鼠标中键长按) | 'keyboard' (键盘快捷键)
   middleButtonHoldTime: 1000, // 鼠标中键长按时间（毫秒）
+  
+  // 键盘快捷键相关
+  keyboardShortcut: 'CommandOrControl+Shift+M', // 显示/隐藏窗口的快捷键
+  keyboardModeEnabled: false, // 是否启用键盘模式（启用后鼠标模式将禁用）
   
   // 启动相关
   showWindowOnStartup: true, // 启动时是否显示窗口（用于指示位置）
