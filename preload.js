@@ -97,6 +97,15 @@ ipcRenderer.on('app-shown', () => {
   }
 });
 
+// 监听打开设置的消息
+ipcRenderer.on('open-settings', () => {
+  try {
+    window.dispatchEvent(new CustomEvent('open-settings'));
+  } catch (e) {
+    console.log('[Preload] Failed to dispatch open-settings event:', e.message);
+  }
+});
+
 // 暴露 iconv 服务到 window.services
 window.services = {
   iconv: (text) => {

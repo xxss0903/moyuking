@@ -38,7 +38,7 @@ const defaultConfig = {
   windowPosition: 'top-right', // 窗口位置：'top-left', 'top-right', 'bottom-left', 'bottom-right'
   
   // 鼠标进入/离开解锁相关
-  mouseEnterLeaveWindow: 3000, // 鼠标进入/离开的时间窗口（毫秒），默认3000毫秒
+  mouseEnterLeaveWindow: 1000, // 鼠标进入/离开的时间窗口（毫秒），默认3000毫秒
   mouseEnterLeaveThreshold: 3 // 鼠标进入/离开的次数阈值，默认5次
 };
 

@@ -159,7 +159,7 @@
                 type="number" 
                 class="input-control" 
                 v-model.number="config.mouseEnterLeaveWindow"
-                min="500" 
+                min="800" 
                 max="10000" 
                 step="100"
                 @change="updateEnterLeaveWindow"
@@ -185,7 +185,7 @@
                 class="input-control" 
                 v-model.number="config.mouseEnterLeaveThreshold"
                 min="2" 
-                max="10" 
+                max="5" 
                 step="1"
                 @change="updateEnterLeaveThreshold"
               >

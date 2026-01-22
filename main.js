@@ -1,4 +1,4 @@
-const { app, BrowserWindow, globalShortcut, ipcMain, screen, dialog } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, screen, dialog, Tray, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -58,6 +58,7 @@ if (process.platform === 'win32') {
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
 let overlayWindow = null; // 透明覆盖窗口，用于监听鼠标中键
+let tray = null; // 系统托盘图标
 const webviewContents = []; // 存储所有webview的引用
 let mouseMonitorTimer = null;
 let isMouseInsideWindow = false;
@@ -244,7 +245,9 @@ function initializeConfig() {
   
   console.log(`[Config] Window pinned state: ${isWindowPinned}`);
   console.log(`[Config] Middle button hold time: ${MIDDLE_BUTTON_HOLD_TIME}ms`);
-  console.log(`[Config] Hide delay on mouse leave: ${config.hideDelayOnMouseLeave || 0}ms`);
+  const hideDelay = config.hideDelayOnMouseLeave || 1000;
+  const finalHideDelay = hideDelay < 1000 ? 1000 : hideDelay;
+  console.log(`[Config] Hide delay on mouse leave: ${finalHideDelay}ms (minimum 1000ms)`);
   console.log(`[Config] Mouse enter/leave window: ${MOUSE_ENTER_LEAVE_WINDOW}ms`);
   console.log(`[Config] Mouse enter/leave threshold: ${MOUSE_ENTER_LEAVE_THRESHOLD}`);
   console.log(`[Config] Auto pause on hide: ${AUTO_PAUSE_ON_HIDE}`);
@@ -953,6 +956,87 @@ if (!gotTheLock) {
     }
   });
 
+// 创建系统托盘图标
+function createTray() {
+  // 托盘图标路径
+  const iconPath = path.join(__dirname, 'fish.png');
+  
+  // 创建托盘图标
+  tray = new Tray(iconPath);
+  tray.setToolTip('moyuking - 摸鱼王');
+  
+  // 创建上下文菜单
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: '显示/隐藏窗口',
+      click: () => {
+        if (mainWindow) {
+          if (mainWindow.isVisible()) {
+            mainWindow.hide();
+          } else {
+            if (mainWindow.isMinimized()) {
+              mainWindow.restore();
+            }
+            mainWindow.show();
+            mainWindow.focus();
+          }
+        } else {
+          createWindow();
+        }
+      }
+    },
+    {
+      label: '设置',
+      click: () => {
+        if (mainWindow) {
+          if (mainWindow.isMinimized()) {
+            mainWindow.restore();
+          }
+          mainWindow.show();
+          mainWindow.focus();
+          // 发送消息到渲染进程打开设置面板
+          mainWindow.webContents.send('open-settings');
+        } else {
+          createWindow();
+          // 等待窗口加载完成后再发送消息
+          mainWindow.webContents.once('did-finish-load', () => {
+            mainWindow.webContents.send('open-settings');
+          });
+        }
+      }
+    },
+    { type: 'separator' },
+    {
+      label: '退出',
+      click: () => {
+        app.quit();
+      }
+    }
+  ]);
+  
+  // 设置上下文菜单
+  tray.setContextMenu(contextMenu);
+  
+  // 点击托盘图标显示/隐藏窗口
+  tray.on('click', () => {
+    if (mainWindow) {
+      if (mainWindow.isVisible()) {
+        mainWindow.hide();
+      } else {
+        if (mainWindow.isMinimized()) {
+          mainWindow.restore();
+        }
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    } else {
+      createWindow();
+    }
+  });
+  
+  console.log('[Tray] System tray icon created');
+}
+
   app.whenReady().then(() => {
     // 先初始化配置，确保所有配置都已加载
     console.log(`[App] Application ready, initializing configuration...`);
@@ -961,6 +1045,9 @@ if (!gotTheLock) {
     
     // 配置加载完成后再创建窗口
     createWindow();
+    
+    // 创建系统托盘图标
+    createTray();
 
     // 注册键盘快捷键（如果启用）
     registerKeyboardShortcut();
@@ -976,8 +1063,19 @@ if (!gotTheLock) {
 app.on('window-all-closed', () => {
   // 注销快捷键
   unregisterKeyboardShortcut();
-  if (process.platform !== 'darwin') {
+  
+  // 如果有托盘图标，不退出应用（Windows/Linux）
+  // macOS 上，即使所有窗口关闭，应用通常也继续运行
+  if (process.platform !== 'darwin' && !tray) {
     app.quit();
+  }
+});
+
+// 应用退出时销毁托盘图标
+app.on('before-quit', () => {
+  if (tray) {
+    tray.destroy();
+    tray = null;
   }
 });
 
@@ -1096,7 +1194,11 @@ function startMouseMonitor() {
       
       // 如果窗口未固定，则延迟隐藏窗口
       if (!isWindowPinned) {
-        const hideDelay = getConfig('hideDelayOnMouseLeave') || 0;
+        let hideDelay = getConfig('hideDelayOnMouseLeave') || 1000;
+        // 确保最少1000ms
+        if (hideDelay < 1000) {
+          hideDelay = 1000;
+        }
         console.log(`[Mouse Monitor] Hide delay: ${hideDelay}ms`);
         
         if (hideDelay === 0) {

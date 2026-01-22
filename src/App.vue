@@ -150,7 +150,12 @@ watch(currentModule, async (newModule) => {
   }
 }, { immediate: true });
 
+// 监听来自主进程的打开设置消息
 onMounted(async () => {
+  // 监听打开设置事件（来自托盘图标或主进程）
+  window.addEventListener('open-settings', () => {
+    showSettingsPanel.value = true;
+  });
   // 界面和配置加载完成后，延迟 3 秒再开始加载模块内容（如抖音链接）
   console.log('[App] Vue app mounted, will load modules after 3 seconds...');
   setTimeout(async () => {
