@@ -83,6 +83,24 @@
           </div>
         </div>
 
+        <!-- 启动时显示位置提示 -->
+        <div class="setting-item">
+          <div class="setting-label">
+            <span class="setting-label-text">
+              启动时显示位置提示
+              <span 
+                class="setting-help" 
+                title="启动应用时是否显示窗口位置提示，方便用户知道应用窗口的位置"
+              >?</span>
+            </span>
+            <div 
+              class="toggle-switch" 
+              :class="{ active: config.showWindowOnStartup }"
+              @click="toggleShowWindowOnStartup"
+            ></div>
+          </div>
+        </div>
+
         <!-- 隐藏时自动暂停视频 -->
         <div class="setting-item">
           <div class="setting-label">
@@ -98,9 +116,6 @@
               :class="{ active: config.autoPauseOnHide }"
               @click="toggleAutoPauseOnHide"
             ></div>
-          </div>
-          <div class="setting-note">
-            当前行为：{{ config.autoPauseOnHide ? '隐藏时会暂停视频，重新显示时自动继续播放' : '隐藏时不会自动暂停，视频将持续播放' }}
           </div>
         </div>
 
@@ -229,7 +244,8 @@ const config = ref({
   hideDelayOnMouseLeave: 0,
   mouseEnterLeaveWindow: 3000,
   mouseEnterLeaveThreshold: 5,
-  autoPauseOnHide: true
+  autoPauseOnHide: true,
+  showWindowOnStartup: true
 });
 const checkingUpdate = ref(false);
 const updateButtonText = ref('检查更新');
@@ -264,7 +280,8 @@ const loadConfig = async () => {
       hideDelayOnMouseLeave: (allConfig.hideDelayOnMouseLeave || 0) / 1000, // 毫秒转秒
       mouseEnterLeaveWindow: (allConfig.mouseEnterLeaveWindow || 3000) / 1000, // 毫秒转秒
       mouseEnterLeaveThreshold: allConfig.mouseEnterLeaveThreshold || 5,
-      autoPauseOnHide: allConfig.autoPauseOnHide !== false // 默认开启
+      autoPauseOnHide: allConfig.autoPauseOnHide !== false, // 默认开启
+      showWindowOnStartup: allConfig.showWindowOnStartup !== false // 默认开启
     };
     initialThreshold.value = config.value.mouseEnterLeaveThreshold;
     thresholdChanged.value = false; // 重置标记
@@ -288,6 +305,12 @@ const toggleDefaultPinned = async () => {
   const newValue = !config.value.defaultPinned;
   config.value.defaultPinned = newValue;
   await updateConfig('defaultPinned', newValue);
+};
+
+const toggleShowWindowOnStartup = async () => {
+  const newValue = !config.value.showWindowOnStartup;
+  config.value.showWindowOnStartup = newValue;
+  await updateConfig('showWindowOnStartup', newValue);
 };
 
 const toggleAutoPauseOnHide = async () => {

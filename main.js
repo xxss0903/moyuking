@@ -515,7 +515,14 @@ function createWindow() {
   const showOnStartup = config.showWindowOnStartup !== false; // 默认 true
   const displayDuration = config.startupDisplayDuration || 3000;
   
-  if (showOnStartup) {
+  // 如果窗口是固定状态，启动时直接显示，不隐藏
+  if (isWindowPinned) {
+    mainWindow.show();
+    mainWindow.focus();
+    console.log(`[Window] Window is pinned, showing on startup (not hidden)`);
+    // 固定窗口不需要覆盖窗口来监听鼠标中键
+    // createOverlayWindow(); // 注释掉，固定窗口不需要
+  } else if (showOnStartup) {
     // 启动时先显示窗口，方便用户看到窗口位置，然后隐藏
     mainWindow.show();
     mainWindow.focus();
