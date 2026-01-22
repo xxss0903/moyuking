@@ -1,7 +1,6 @@
 <template>
   <div id="module-panel" :class="{ show: visible }" @click.self="close">
     <div id="module-content">
-      <h2>选择摸鱼方式</h2>
       <div id="module-list">
         <div
           v-for="module in availableModules"

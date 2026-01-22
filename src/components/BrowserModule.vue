@@ -2,6 +2,39 @@
   <div class="browser-container">
     <div class="browser-toolbar">
       <div class="address-group">
+        <div class="presets-dropdown-wrapper">
+          <button 
+            class="presets-dropdown-btn" 
+            :class="{ 'has-presets': presets.length > 0 }"
+            @click="showPresetsDropdown = !showPresetsDropdown"
+            :title="presets.length > 0 ? '选择常用地址' : '暂无常用地址'"
+          >
+            📌 常用地址{{ presets.length > 0 ? ` (${presets.length})` : '' }}
+            <span class="dropdown-arrow">{{ showPresetsDropdown ? '▲' : '▼' }}</span>
+          </button>
+          <div v-if="showPresetsDropdown" class="presets-dropdown">
+            <div v-if="presets.length === 0" class="preset-item empty">
+              暂无常用地址，点击"保存为常用"按钮添加
+            </div>
+            <div
+              v-for="item in presets"
+              :key="item.id"
+              class="preset-item"
+              :title="item.url"
+              @click="selectPreset(item)"
+            >
+              <span class="preset-name">{{ item.name }}</span>
+              <span class="preset-url">{{ item.url }}</span>
+              <button 
+                class="preset-delete-btn" 
+                @click.stop="deletePreset(item.id)"
+                title="删除"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
         <input
           v-model="urlInput"
           type="text"
@@ -12,10 +45,10 @@
         <button class="btn primary" @click="openCurrentUrl">打开</button>
         <button class="btn secondary" @click="saveCurrentToPresets">保存为常用</button>
       </div>
-      <div v-if="presets.length" class="presets">
-        <span class="presets-label">常用地址：</span>
+      <div v-if="presets.length > 0" class="presets-quick">
+        <span class="presets-label">快速访问：</span>
         <button
-          v-for="item in presets"
+          v-for="item in presets.slice(0, 5)"
           :key="item.id"
           class="preset-btn"
           :title="item.url"
@@ -23,6 +56,36 @@
         >
           {{ item.name }}
         </button>
+        <span v-if="presets.length > 5" class="presets-more">...</span>
+      </div>
+    </div>
+
+    <!-- 对话框 -->
+    <div v-if="showDialog" class="dialog-overlay" @click.self="closeDialog">
+      <div class="dialog-content">
+        <div class="dialog-header">
+          <h3 class="dialog-title">{{ dialogTitle }}</h3>
+        </div>
+        <div class="dialog-body">
+          <div v-if="dialogType === 'confirm'" class="dialog-message">
+            {{ dialogMessage }}
+          </div>
+          <div v-else-if="dialogType === 'prompt'" class="dialog-input-wrapper">
+            <label class="dialog-label">{{ dialogMessage }}</label>
+            <input
+              v-model="dialogInputValue"
+              type="text"
+              class="dialog-input"
+              @keyup.enter="confirmDialog"
+              @keyup.esc="closeDialog"
+              ref="dialogInputRef"
+            />
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="dialog-btn dialog-btn-cancel" @click="closeDialog">取消</button>
+          <button class="dialog-btn dialog-btn-confirm" @click="confirmDialog">确定</button>
+        </div>
       </div>
     </div>
 
@@ -40,7 +103,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useElectronAPI } from '../composables/useElectronAPI';
 
 const electronAPI = useElectronAPI();
@@ -50,6 +113,16 @@ const DEFAULT_HOME = 'https://www.baidu.com/';
 const urlInput = ref('');
 const initialUrl = ref(DEFAULT_HOME);
 const presets = ref([]);
+const showPresetsDropdown = ref(false);
+
+// 对话框相关
+const showDialog = ref(false);
+const dialogType = ref(''); // 'confirm' | 'prompt'
+const dialogTitle = ref('');
+const dialogMessage = ref('');
+const dialogInputValue = ref('');
+const dialogInputRef = ref(null);
+const dialogResolve = ref(null);
 
 // 与其它模块保持一致的 UA
 const userAgent =
@@ -76,21 +149,20 @@ function normalizeUrl(raw) {
 async function openUrl(url) {
   const finalUrl = normalizeUrl(url);
   if (!finalUrl) {
-    window.alert('请输入有效的网址或搜索内容');
+    await showConfirmDialog('提示', '请输入有效的网址或搜索内容');
     return;
   }
 
   urlInput.value = finalUrl;
 
-  // 通过主进程统一跳转当前 webview
-  if (electronAPI && electronAPI.navigateWebview) {
-    electronAPI.navigateWebview(finalUrl);
+  // 直接操作浏览器模块自己的 webview
+  const webview = document.querySelector('#browser-webview');
+  if (webview) {
+    webview.src = finalUrl;
+    console.log('[BrowserModule] Navigating to:', finalUrl);
   } else {
-    // 兜底：直接操作当前模块内的 webview
-    const webview = document.querySelector('#browser-webview');
-    if (webview) {
-      webview.src = finalUrl;
-    }
+    console.error('[BrowserModule] Browser webview not found');
+    await showConfirmDialog('错误', '无法找到浏览器窗口，请刷新页面');
   }
 }
 
@@ -101,30 +173,146 @@ function openCurrentUrl() {
 function openPreset(item) {
   if (!item || !item.url) return;
   openUrl(item.url);
+  showPresetsDropdown.value = false;
+}
+
+function selectPreset(item) {
+  openPreset(item);
+}
+
+// 显示确认对话框
+function showConfirmDialog(title, message) {
+  return new Promise((resolve) => {
+    dialogType.value = 'confirm';
+    dialogTitle.value = title;
+    dialogMessage.value = message;
+    showDialog.value = true;
+    dialogResolve.value = resolve;
+  });
+}
+
+// 显示输入对话框
+function showPromptDialog(title, message, defaultValue = '') {
+  return new Promise((resolve) => {
+    dialogType.value = 'prompt';
+    dialogTitle.value = title;
+    dialogMessage.value = message;
+    dialogInputValue.value = defaultValue;
+    showDialog.value = true;
+    dialogResolve.value = resolve;
+    // 等待 DOM 更新后聚焦输入框
+    setTimeout(() => {
+      if (dialogInputRef.value) {
+        dialogInputRef.value.focus();
+        dialogInputRef.value.select();
+      }
+    }, 100);
+  });
+}
+
+// 关闭对话框
+function closeDialog() {
+  showDialog.value = false;
+  if (dialogResolve.value) {
+    dialogResolve.value(false);
+    dialogResolve.value = null;
+  }
+}
+
+// 确认对话框
+function confirmDialog() {
+  if (dialogType.value === 'prompt') {
+    const value = dialogInputValue.value.trim();
+    showDialog.value = false;
+    if (dialogResolve.value) {
+      dialogResolve.value(value || null);
+      dialogResolve.value = null;
+    }
+  } else {
+    showDialog.value = false;
+    if (dialogResolve.value) {
+      dialogResolve.value(true);
+      dialogResolve.value = null;
+    }
+  }
+}
+
+async function deletePreset(id) {
+  const confirmed = await showConfirmDialog('删除常用地址', '确定要删除这个常用地址吗？');
+  if (!confirmed) return;
+  
+  presets.value = presets.value.filter(p => p.id !== id);
+  
+  if (electronAPI && electronAPI.setConfig) {
+    try {
+      // 转换为纯 JavaScript 对象，避免序列化错误
+      const plainPresets = JSON.parse(JSON.stringify(presets.value));
+      await electronAPI.setConfig('browserPresets', plainPresets);
+      console.log('[BrowserModule] Preset deleted, remaining:', plainPresets);
+    } catch (e) {
+      console.error('[BrowserModule] Failed to delete preset:', e);
+      // 使用对话框显示错误
+      await showConfirmDialog('错误', '删除失败：' + (e.message || String(e)));
+    }
+  }
 }
 
 async function saveCurrentToPresets() {
   const finalUrl = normalizeUrl(urlInput.value || initialUrl.value);
   if (!finalUrl) {
-    window.alert('请输入有效的网址后再保存');
+    await showConfirmDialog('提示', '请输入有效的网址后再保存');
     return;
   }
 
-  const name = prompt('请输入名称（例如：公司后台、常用站点名称）', finalUrl);
-  if (!name) return;
+  // 检查是否已经存在相同的 URL
+  const existingIndex = presets.value.findIndex(p => p.url === finalUrl);
+  if (existingIndex >= 0) {
+    const update = await showConfirmDialog(
+      '更新常用地址',
+      `该地址已存在（${presets.value[existingIndex].name}），是否更新名称？`
+    );
+    if (!update) return;
+    
+    const name = await showPromptDialog(
+      '更新名称',
+      '请输入新名称（例如：公司后台、常用站点名称）',
+      presets.value[existingIndex].name
+    );
+    if (!name) return;
+    
+    presets.value[existingIndex].name = name;
+  } else {
+    const name = await showPromptDialog(
+      '保存常用地址',
+      '请输入名称（例如：公司后台、常用站点名称）',
+      finalUrl
+    );
+    if (!name) return;
 
-  const id = Date.now();
-  const newPreset = { id, name, url: finalUrl };
-
-  presets.value = [...presets.value, newPreset];
+    const id = Date.now();
+    const newPreset = { id, name, url: finalUrl };
+    presets.value = [...presets.value, newPreset];
+  }
 
   if (electronAPI && electronAPI.setConfig) {
     try {
-      await electronAPI.setConfig('browserPresets', presets.value);
-      console.log('[BrowserModule] Presets saved:', presets.value);
+      // 转换为纯 JavaScript 对象，避免序列化错误
+      const plainPresets = JSON.parse(JSON.stringify(presets.value));
+      await electronAPI.setConfig('browserPresets', plainPresets);
+      console.log('[BrowserModule] Presets saved:', plainPresets);
+      await showConfirmDialog('成功', '保存成功！');
     } catch (e) {
       console.error('[BrowserModule] Failed to save presets:', e);
+      await showConfirmDialog('错误', '保存失败：' + (e.message || String(e)));
     }
+  }
+}
+
+// 点击外部关闭下拉菜单
+function handleClickOutside(event) {
+  const dropdown = event.target.closest('.presets-dropdown-wrapper');
+  if (!dropdown && showPresetsDropdown.value) {
+    showPresetsDropdown.value = false;
   }
 }
 
@@ -153,6 +341,13 @@ onMounted(async () => {
     initialUrl.value = DEFAULT_HOME;
     urlInput.value = DEFAULT_HOME;
   }
+  
+  // 添加点击外部关闭下拉菜单的监听
+  document.addEventListener('click', handleClickOutside);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
 });
 </script>
 
@@ -210,11 +405,131 @@ onMounted(async () => {
   color: #333;
 }
 
-.presets {
+.presets-dropdown-wrapper {
+  position: relative;
+}
+
+.presets-dropdown-btn {
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  background: #f8f9fa;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #666;
+}
+
+.presets-dropdown-btn.has-presets {
+  background: #e3f2fd;
+  border-color: #2196f3;
+  color: #1976d2;
+}
+
+.presets-dropdown-btn:hover {
+  background: #e9ecef;
+}
+
+.presets-dropdown-btn.has-presets:hover {
+  background: #bbdefb;
+}
+
+.dropdown-arrow {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.presets-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  min-width: 300px;
+  max-width: 400px;
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+.preset-item {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.15s;
+}
+
+.preset-item:last-child {
+  border-bottom: none;
+}
+
+.preset-item:hover {
+  background: #f5f5f5;
+}
+
+.preset-item.empty {
+  color: #999;
+  cursor: default;
+  justify-content: center;
+  padding: 16px;
+}
+
+.preset-item.empty:hover {
+  background: transparent;
+}
+
+.preset-name {
+  flex: 0 0 auto;
+  font-weight: 500;
+  color: #333;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preset-url {
+  flex: 1;
+  font-size: 11px;
+  color: #999;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preset-delete-btn {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border: none;
+  background: transparent;
+  color: #999;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 2px;
+  transition: all 0.15s;
+}
+
+.preset-delete-btn:hover {
+  background: #ffebee;
+  color: #f44336;
+}
+
+.presets-quick {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+  margin-top: 6px;
 }
 
 .presets-label {
@@ -233,6 +548,122 @@ onMounted(async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.preset-btn:hover {
+  background: #e3f2fd;
+  border-color: #2196f3;
+  color: #1976d2;
+}
+
+.presets-more {
+  font-size: 12px;
+  color: #999;
+}
+
+/* 对话框样式 */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.dialog-content {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  min-width: 320px;
+  max-width: 500px;
+  overflow: hidden;
+}
+
+.dialog-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.dialog-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.dialog-body {
+  padding: 20px;
+}
+
+.dialog-message {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.5;
+}
+
+.dialog-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dialog-label {
+  font-size: 14px;
+  color: #666;
+}
+
+.dialog-input {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.dialog-input:focus {
+  border-color: #007bff;
+}
+
+.dialog-footer {
+  padding: 12px 20px;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dialog-btn {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.dialog-btn-cancel {
+  background: #f5f5f5;
+  color: #333;
+}
+
+.dialog-btn-cancel:hover {
+  background: #e0e0e0;
+}
+
+.dialog-btn-confirm {
+  background: #007bff;
+  color: #fff;
+}
+
+.dialog-btn-confirm:hover {
+  background: #0056b3;
 }
 
 .browser-webview-wrapper {

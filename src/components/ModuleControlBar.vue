@@ -71,9 +71,18 @@ const goHomeBrowser = () => {
   if (electronAPI) {
     electronAPI.getConfig('browserHomeUrl').then((home) => {
       const url = typeof home === 'string' && home.trim() ? home : 'https://www.baidu.com/';
-      electronAPI.navigateWebview(url);
+      // 直接操作浏览器模块的 webview
+      const webview = document.querySelector('#browser-webview');
+      if (webview) {
+        webview.src = url;
+      } else {
+        console.error('[ModuleControlBar] Browser webview not found');
+      }
     }).catch(() => {
-      electronAPI.navigateWebview('https://www.baidu.com/');
+      const webview = document.querySelector('#browser-webview');
+      if (webview) {
+        webview.src = 'https://www.baidu.com/';
+      }
     });
   }
 };
@@ -361,18 +370,45 @@ const triggerPageFullscreen = async () => {
 };
 
 const refresh = () => {
+  // 如果是浏览器模块，直接操作 webview
+  if (props.moduleId === 'browser') {
+    const webview = document.querySelector('#browser-webview');
+    if (webview) {
+      webview.reload();
+      return;
+    }
+  }
+  // 其他模块使用脚本执行
   if (electronAPI) {
     electronAPI.executeWebviewScript('location.reload(); return { success: true };');
   }
 };
 
 const goBack = () => {
+  // 如果是浏览器模块，直接操作 webview
+  if (props.moduleId === 'browser') {
+    const webview = document.querySelector('#browser-webview');
+    if (webview) {
+      webview.goBack();
+      return;
+    }
+  }
+  // 其他模块使用脚本执行
   if (electronAPI) {
     electronAPI.executeWebviewScript('window.history.back(); return { success: true };');
   }
 };
 
 const goForward = () => {
+  // 如果是浏览器模块，直接操作 webview
+  if (props.moduleId === 'browser') {
+    const webview = document.querySelector('#browser-webview');
+    if (webview) {
+      webview.goForward();
+      return;
+    }
+  }
+  // 其他模块使用脚本执行
   if (electronAPI) {
     electronAPI.executeWebviewScript('window.history.forward(); return { success: true };');
   }
