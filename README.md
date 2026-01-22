@@ -6,6 +6,13 @@
 ![Electron](https://img.shields.io/badge/Electron-32.1.0-brightgreen.svg)
 ![Vue](https://img.shields.io/badge/Vue-3.4.0-4FC08D.svg)
 
+## 📥 下载
+
+最新版本请前往 [Releases](https://github.com/xxss0903/moyuking/releases) 页面下载。
+
+- **安装版** (推荐): `摸鱼王 Setup 1.0.0.exe` - 完整的安装程序
+- **便携版**: `摸鱼王 1.0.0.exe` - 无需安装，直接运行
+
 ## ✨ 特性
 
 ### 🎯 核心功能
