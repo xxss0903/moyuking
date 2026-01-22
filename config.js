@@ -30,7 +30,7 @@ const defaultConfig = {
   isFirstLaunch: true, // 是否是第一次启动（第一次启动时显示窗口且不隐藏）
   
   // 窗口行为相关
-  hideDelayOnMouseLeave: 1000, // 鼠标移出后隐藏窗口的延迟时间（毫秒），最少1000ms
+  hideDelayOnMouseLeave: 3000, // 鼠标移出后隐藏窗口的延迟时间（毫秒），最少1000ms
   defaultPinned: false, // 默认是否固定窗口
   autoPauseOnHide: true, // 隐藏窗口时是否自动暂停视频，显示窗口时自动继续播放
   
@@ -39,7 +39,7 @@ const defaultConfig = {
   
   // 鼠标进入/离开解锁相关
   mouseEnterLeaveWindow: 1000, // 鼠标进入/离开的时间窗口（毫秒），默认3000毫秒
-  mouseEnterLeaveThreshold: 3 // 鼠标进入/离开的次数阈值，默认5次
+  mouseEnterLeaveThreshold: 2 // 鼠标进入/离开的次数阈值，默认5次
 };
 
 // 读取配置
