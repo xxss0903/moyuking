@@ -160,9 +160,9 @@ pindouyin/
 ## ⚙️ 配置说明
 
 应用配置文件位于用户数据目录的 `moyu_config.json`：
-- Windows: `%APPDATA%/moyu-king/moyu_config.json`
-- macOS: `~/Library/Application Support/moyu-king/moyu_config.json`
-- Linux: `~/.config/moyu-king/moyu_config.json`
+- Windows: `%APPDATA%/moyuking/moyu_config.json`
+- macOS: `~/Library/Application Support/moyuking/moyu_config.json`
+- Linux: `~/.config/moyuking/moyu_config.json`
 
 主要配置项：
 - `windowPosition` - 窗口位置

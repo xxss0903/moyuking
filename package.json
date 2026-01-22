@@ -1,5 +1,5 @@
 {
-  "name": "moyu-king",
+  "name": "moyuking",
   "version": "1.0.0",
   "description": "摸鱼王 - 支持多种摸鱼方式的悬浮窗应用（抖音、小说等）",
   "main": "main.js",
@@ -26,11 +26,12 @@
     "vite-plugin-electron": "^0.28.0"
   },
   "build": {
-    "appId": "com.moyu-king.app",
-    "productName": "摸鱼王",
+    "appId": "com.moyuking.app",
+    "productName": "moyuking",
     "directories": {
       "output": "release"
     },
+    "icon": "fish.png",
     "files": [
       "dist/**/*",
       "main.js",
@@ -50,6 +51,7 @@
     ],
     "asar": false,
     "win": {
+      "icon": "fish.png",
       "target": [
         {
           "target": "nsis",

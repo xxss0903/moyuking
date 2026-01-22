@@ -134,7 +134,7 @@
                 type="number" 
                 class="input-control" 
                 v-model.number="config.hideDelayOnMouseLeave"
-                min="0" 
+                min="1" 
                 max="10" 
                 step="0.1"
                 @change="updateHideDelay"
@@ -151,7 +151,7 @@
               进入/离开时间窗口
               <span 
                 class="setting-help" 
-                title="鼠标进入/离开解锁的时间窗口（秒），在此时间内需要达到指定次数"
+                title="鼠标进入/离开解锁的时间窗口（毫秒），在此时间内需要达到指定次数"
               >?</span>
             </span>
             <div class="setting-control" style="margin-top: 0;">
@@ -159,12 +159,12 @@
                 type="number" 
                 class="input-control" 
                 v-model.number="config.mouseEnterLeaveWindow"
-                min="1" 
-                max="10" 
-                step="0.5"
+                min="500" 
+                max="10000" 
+                step="100"
                 @change="updateEnterLeaveWindow"
               >
-              <span style="color: #666; font-size: 12px;">秒</span>
+              <span style="color: #666; font-size: 12px;">毫秒</span>
             </div>
           </div>
         </div>
@@ -285,7 +285,7 @@ const config = ref({
   windowPosition: 'top-right',
   defaultPinned: false,
   windowOpacity: 1,
-  hideDelayOnMouseLeave: 0,
+  hideDelayOnMouseLeave: 1, // 默认1000ms（1秒）
   mouseEnterLeaveWindow: 3000,
   mouseEnterLeaveThreshold: 5,
   autoPauseOnHide: true,
@@ -323,8 +323,8 @@ const loadConfig = async () => {
       windowPosition: allConfig.windowPosition || 'top-right',
       defaultPinned: allConfig.defaultPinned || false,
       windowOpacity: typeof allConfig.windowOpacity === 'number' ? allConfig.windowOpacity : 1,
-      hideDelayOnMouseLeave: (allConfig.hideDelayOnMouseLeave || 0) / 1000, // 毫秒转秒
-      mouseEnterLeaveWindow: (allConfig.mouseEnterLeaveWindow || 3000) / 1000, // 毫秒转秒
+      hideDelayOnMouseLeave: (allConfig.hideDelayOnMouseLeave || 1000) / 1000, // 毫秒转秒，默认1000ms
+      mouseEnterLeaveWindow: allConfig.mouseEnterLeaveWindow || 3000, // 毫秒
       mouseEnterLeaveThreshold: allConfig.mouseEnterLeaveThreshold || 5,
       autoPauseOnHide: allConfig.autoPauseOnHide !== false, // 默认开启
       showWindowOnStartup: allConfig.showWindowOnStartup !== false, // 默认开启
@@ -389,10 +389,13 @@ const updateKeyboardShortcut = async (e) => {
 };
 
 const updateHideDelay = async (e) => {
-  const valueInSeconds = parseFloat(e.target.value) || 0;
-  config.value.hideDelayOnMouseLeave = valueInSeconds;
+  const valueInSeconds = parseFloat(e.target.value) || 1;
+  // 确保最少1000ms（1秒）
+  const minSeconds = 1;
+  const finalSeconds = Math.max(valueInSeconds, minSeconds);
+  config.value.hideDelayOnMouseLeave = finalSeconds;
   // 将秒转换为毫秒保存
-  const valueInMs = Math.round(valueInSeconds * 1000);
+  const valueInMs = Math.round(finalSeconds * 1000);
   await updateConfig('hideDelayOnMouseLeave', valueInMs);
 };
 
@@ -405,10 +408,9 @@ const updateWindowOpacity = async (e) => {
 };
 
 const updateEnterLeaveWindow = async (e) => {
-  const valueInSeconds = parseFloat(e.target.value) || 3;
-  config.value.mouseEnterLeaveWindow = valueInSeconds;
-  // 将秒转换为毫秒保存
-  const valueInMs = Math.round(valueInSeconds * 1000);
+  const valueInMs = parseInt(e.target.value) || 3000;
+  config.value.mouseEnterLeaveWindow = valueInMs;
+  // 直接使用毫秒保存
   await updateConfig('mouseEnterLeaveWindow', valueInMs);
   if (electronAPI) {
     await electronAPI.reloadUnlockConfig();
