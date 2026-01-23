@@ -34,6 +34,9 @@ const defaultConfig = {
   defaultPinned: false, // 默认是否固定窗口
   autoPauseOnHide: true, // 隐藏窗口时是否自动暂停视频，显示窗口时自动继续播放
   
+  // 桌面小宠物（小鱼）
+  enableDesktopPet: false, // 是否启用桌面小宠物（一个可爱的悬浮小鱼）
+  
   // 界面位置相关
   windowPosition: 'top-right', // 窗口位置：'top-left', 'top-right', 'bottom-left', 'bottom-right'
   

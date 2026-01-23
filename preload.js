@@ -77,7 +77,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 本地小说：打开 / 重新读取本地小说文件（可指定编码和已选路径）
   // options: { encoding?: 'utf-8' | 'gbk', filePath?: string }
-  openLocalNovelFile: (options) => ipcRenderer.invoke('open-local-novel-file', options)
+  openLocalNovelFile: (options) => ipcRenderer.invoke('open-local-novel-file', options),
+  
+  // 摸鱼系统：获取摸鱼数据
+  getMoyuData: () => ipcRenderer.invoke('get-moyu-data')
 });
 
 // 全局事件：转发主进程的窗口状态事件到渲染进程（作为自定义事件）
@@ -103,6 +106,15 @@ ipcRenderer.on('open-settings', () => {
     window.dispatchEvent(new CustomEvent('open-settings'));
   } catch (e) {
     console.log('[Preload] Failed to dispatch open-settings event:', e.message);
+  }
+});
+
+// 监听摸鱼数据更新事件（用于pet窗口）
+ipcRenderer.on('moyu-data-updated', (event, data) => {
+  try {
+    window.dispatchEvent(new CustomEvent('moyu-data-updated', { detail: data }));
+  } catch (e) {
+    console.log('[Preload] Failed to dispatch moyu-data-updated event:', e.message);
   }
 });
 

@@ -59,6 +59,7 @@ if (process.platform === 'win32') {
 let mainWindow = null;
 let overlayWindow = null; // 透明覆盖窗口，用于监听鼠标中键
 let tray = null; // 系统托盘图标
+let petWindow = null; // 桌面小宠物窗口（小鱼）
 const webviewContents = []; // 存储所有webview的引用
 let mouseMonitorTimer = null;
 let isMouseInsideWindow = false;
@@ -89,6 +90,16 @@ let WINDOW_OPACITY = 1.0; // 窗口透明度（从配置文件加载，0.2 ~ 1.0
 let KEYBOARD_MODE_ENABLED = false; // 是否启用键盘模式
 let KEYBOARD_SHORTCUT = 'CommandOrControl+Shift+M'; // 快捷键组合
 let currentShortcut = null; // 当前注册的快捷键
+
+// 桌面小宠物配置
+let ENABLE_DESKTOP_PET = false; // 是否启用桌面小宠物
+
+// 摸鱼系统相关变量
+let moyuData = null; // 摸鱼数据对象
+let moyuDataFile = null; // 数据文件路径
+let moyuTimer = null; // 计时器（每秒更新）
+let moyuStartTime = null; // 当前会话开始时间
+let isMoyuTracking = false; // 是否正在追踪
 
 // 加载所有可用模块
 function loadModules() {
@@ -238,6 +249,8 @@ function initializeConfig() {
   // 窗口透明度（限制在 0.2 ~ 1.0 之间，避免完全透明导致看不见）
   const opacity = typeof config.windowOpacity === 'number' ? config.windowOpacity : 1.0;
   WINDOW_OPACITY = Math.min(1.0, Math.max(0.2, opacity));
+  // 桌面小宠物
+  ENABLE_DESKTOP_PET = config.enableDesktopPet === true;
   
   // 键盘模式配置
   KEYBOARD_MODE_ENABLED = config.keyboardModeEnabled === true;
@@ -254,9 +267,229 @@ function initializeConfig() {
   console.log(`[Config] Window opacity: ${WINDOW_OPACITY}`);
   console.log(`[Config] Keyboard mode enabled: ${KEYBOARD_MODE_ENABLED}`);
   console.log(`[Config] Keyboard shortcut: ${KEYBOARD_SHORTCUT}`);
+  console.log(`[Config] Desktop pet enabled: ${ENABLE_DESKTOP_PET}`);
   console.log(`[Config] ================================================`);
   
   return config;
+}
+
+// ========== 摸鱼系统数据管理 ==========
+
+// 获取当前日期字符串（YYYY-MM-DD）
+function getCurrentDateString() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// 加载摸鱼数据
+function loadMoyuData() {
+  try {
+    if (!moyuDataFile) {
+      moyuDataFile = path.join(app.getPath('userData'), 'moyu_data.json');
+    }
+    
+    if (fs.existsSync(moyuDataFile)) {
+      const data = fs.readFileSync(moyuDataFile, 'utf-8');
+      moyuData = JSON.parse(data);
+      console.log('[Moyu] Loaded moyu data from:', moyuDataFile);
+    } else {
+      // 创建默认数据
+      moyuData = {
+        dailyTime: {},
+        totalTime: 0,
+        growthValue: 0,
+        level: 1,
+        lastUpdateDate: getCurrentDateString()
+      };
+      saveMoyuData();
+      console.log('[Moyu] Created default moyu data');
+    }
+    
+    // 检查跨日重置
+    const currentDate = getCurrentDateString();
+    if (moyuData.lastUpdateDate !== currentDate) {
+      console.log(`[Moyu] New day detected (${moyuData.lastUpdateDate} -> ${currentDate}), resetting daily time`);
+      // 重置今日时间，但保留累计时间和成长值
+      moyuData.dailyTime[currentDate] = 0;
+      moyuData.lastUpdateDate = currentDate;
+      saveMoyuData();
+    } else {
+      // 确保今日时间存在
+      if (!moyuData.dailyTime[currentDate]) {
+        moyuData.dailyTime[currentDate] = 0;
+      }
+    }
+    
+    // 确保所有必需字段存在
+    if (typeof moyuData.totalTime !== 'number') moyuData.totalTime = 0;
+    if (typeof moyuData.growthValue !== 'number') moyuData.growthValue = 0;
+    if (typeof moyuData.level !== 'number') moyuData.level = 1;
+    
+    return moyuData;
+  } catch (error) {
+    console.error('[Moyu] Failed to load moyu data:', error);
+    // 返回默认数据
+    moyuData = {
+      dailyTime: {},
+      totalTime: 0,
+      growthValue: 0,
+      level: 1,
+      lastUpdateDate: getCurrentDateString()
+    };
+    return moyuData;
+  }
+}
+
+// 保存摸鱼数据
+function saveMoyuData() {
+  try {
+    if (!moyuData) {
+      console.warn('[Moyu] No data to save');
+      return;
+    }
+    
+    if (!moyuDataFile) {
+      moyuDataFile = path.join(app.getPath('userData'), 'moyu_data.json');
+    }
+    
+    // 确保目录存在
+    const dataDir = path.dirname(moyuDataFile);
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    
+    fs.writeFileSync(moyuDataFile, JSON.stringify(moyuData, null, 2), 'utf-8');
+    console.log('[Moyu] Saved moyu data to:', moyuDataFile);
+  } catch (error) {
+    console.error('[Moyu] Failed to save moyu data:', error);
+  }
+}
+
+// 根据成长值计算等级（分阶段）
+function calculateLevel(growthValue) {
+  if (growthValue < 60) return 1;      // 0-60点（1小时以内）
+  if (growthValue < 300) return 2;     // 61-300点（1-5小时）
+  if (growthValue < 600) return 3;    // 301-600点（5-10小时）
+  if (growthValue < 1200) return 4;   // 601-1200点（10-20小时）
+  return 5;                            // 1201+点（20小时以上）
+}
+
+// 根据等级计算鱼儿大小（像素）
+function calculateSize(level) {
+  const baseSize = 80; // 基础大小
+  const sizePerLevel = 20; // 每级增加20px
+  const maxSize = 180; // 最大大小
+  const size = baseSize + (level - 1) * sizePerLevel;
+  return Math.min(size, maxSize);
+}
+
+// 开始摸鱼时间追踪
+function startMoyuTracking() {
+  if (isMoyuTracking) {
+    console.log('[Moyu] Already tracking, skipping start');
+    return;
+  }
+  
+  if (!moyuData) {
+    loadMoyuData();
+  }
+  
+  const currentDate = getCurrentDateString();
+  const sessionStartTodayTime = moyuData.dailyTime[currentDate] || 0;
+  const sessionStartTotalTime = moyuData.totalTime || 0;
+  const sessionStartGrowthValue = moyuData.growthValue || 0;
+  
+  moyuStartTime = {
+    timestamp: Date.now(),
+    todayTime: sessionStartTodayTime,
+    totalTime: sessionStartTotalTime,
+    growthValue: sessionStartGrowthValue
+  };
+  
+  isMoyuTracking = true;
+  console.log('[Moyu] Started tracking moyu time');
+  
+  // 立即更新一次
+  updateMoyuTime();
+  
+  // 每秒更新一次
+  moyuTimer = setInterval(() => {
+    updateMoyuTime();
+  }, 1000);
+}
+
+// 停止摸鱼时间追踪
+function stopMoyuTracking() {
+  if (!isMoyuTracking) {
+    return;
+  }
+  
+  // 更新最后一次时间（最终保存）
+  if (moyuStartTime && typeof moyuStartTime === 'object') {
+    updateMoyuTime();
+  }
+  
+  // 清除计时器
+  if (moyuTimer) {
+    clearInterval(moyuTimer);
+    moyuTimer = null;
+  }
+  
+  isMoyuTracking = false;
+  moyuStartTime = null;
+  
+  // 保存数据
+  saveMoyuData();
+  
+  console.log('[Moyu] Stopped tracking moyu time and saved data');
+}
+
+// 更新摸鱼时间
+function updateMoyuTime() {
+  if (!moyuData || !moyuStartTime || typeof moyuStartTime !== 'object') {
+    return;
+  }
+  
+  const currentDate = getCurrentDateString();
+  const elapsedSeconds = (Date.now() - moyuStartTime.timestamp) / 1000;
+  
+  // 更新今日时间 = 会话开始时的今日时间 + 本次会话已过时间
+  moyuData.dailyTime[currentDate] = moyuStartTime.todayTime + elapsedSeconds;
+  
+  // 更新累计时间 = 会话开始时的累计时间 + 本次会话已过时间
+  moyuData.totalTime = moyuStartTime.totalTime + elapsedSeconds;
+  
+  // 更新成长值（1分钟 = 1点，每秒增加 1/60 点）
+  // 成长值 = 会话开始时的成长值 + 本次会话增加的成长值
+  const growthIncrease = elapsedSeconds / 60;
+  moyuData.growthValue = moyuStartTime.growthValue + growthIncrease;
+  
+  // 更新等级
+  const newLevel = calculateLevel(Math.floor(moyuData.growthValue));
+  if (newLevel !== moyuData.level) {
+    console.log(`[Moyu] Level up! ${moyuData.level} -> ${newLevel}`);
+    moyuData.level = newLevel;
+  }
+  
+  // 更新最后更新日期
+  moyuData.lastUpdateDate = currentDate;
+  
+  // 通知pet窗口更新（如果存在）
+  if (petWindow && petWindow.webContents) {
+    try {
+      petWindow.webContents.send('moyu-data-updated', {
+        dailyTime: Math.floor(moyuData.dailyTime[currentDate]),
+        totalTime: Math.floor(moyuData.totalTime),
+        growthValue: Math.floor(moyuData.growthValue),
+        level: moyuData.level
+      });
+    } catch (e) {
+      // 忽略错误
+    }
+  }
 }
 
 function createWindow() {
@@ -490,6 +723,9 @@ function createWindow() {
       videoPausedByAutoHide = false;
     }
 
+    // 停止摸鱼时间追踪
+    stopMoyuTracking();
+
     // 通知渲染进程应用已隐藏（用于本地小说等模块暂停自动行为）
     try {
       if (mainWindow && mainWindow.webContents) {
@@ -502,6 +738,9 @@ function createWindow() {
 
   mainWindow.on('show', () => {
     console.log(`[Window] Main window shown`);
+
+    // 开始摸鱼时间追踪
+    startMoyuTracking();
 
     // 通知渲染进程应用已显示
     try {
@@ -932,6 +1171,71 @@ function createOverlayWindow() {
   });
 }
 
+// 创建桌面小宠物窗口（小鱼）
+function createPetWindow() {
+  try {
+    if (petWindow || !ENABLE_DESKTOP_PET) {
+      return;
+    }
+    const display = screen.getPrimaryDisplay();
+    const { width, height } = display.workAreaSize || display.size;
+    // 窗口大小：需要容纳数据面板（约200px宽）和最大鱼儿（180px）
+    const windowWidth = 220;
+    const windowHeight = 280; // 数据面板高度 + 最大鱼儿高度
+    const x = width - windowWidth - 20;
+    const y = height - windowHeight - 20;
+
+    petWindow = new BrowserWindow({
+      width: windowWidth,
+      height: windowHeight,
+      x,
+      y,
+      frame: false,
+      transparent: true,
+      resizable: false,
+      movable: true,
+      hasShadow: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      focusable: false,
+      roundedCorners: true,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        nodeIntegration: false,
+        contextIsolation: true,
+        backgroundThrottling: false
+      }
+    });
+
+    petWindow.setMenuBarVisibility(false);
+
+    const petHtmlPath = path.join(__dirname, 'pet.html');
+    petWindow.loadFile(petHtmlPath).catch(err => {
+      console.error('[Pet] Failed to load pet.html:', err);
+    });
+
+    petWindow.on('closed', () => {
+      petWindow = null;
+    });
+
+    console.log('[Pet] Desktop pet window created at', x, y);
+  } catch (e) {
+    console.error('[Pet] Failed to create desktop pet window:', e);
+  }
+}
+
+function destroyPetWindow() {
+  if (petWindow) {
+    try {
+      petWindow.close();
+    } catch (e) {
+      // ignore
+    }
+    petWindow = null;
+    console.log('[Pet] Desktop pet window destroyed');
+  }
+}
+
 // 确保应用只能开启一次（单实例）
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -1043,11 +1347,19 @@ function createTray() {
     initializeConfig();
     console.log(`[App] Configuration initialized, creating window...`);
     
+    // 初始化摸鱼数据
+    loadMoyuData();
+    
     // 配置加载完成后再创建窗口
     createWindow();
     
     // 创建系统托盘图标
     createTray();
+
+    // 根据配置创建桌面小宠物
+    if (ENABLE_DESKTOP_PET) {
+      createPetWindow();
+    }
 
     // 注册键盘快捷键（如果启用）
     registerKeyboardShortcut();
@@ -1084,6 +1396,18 @@ app.on('will-quit', () => {
   unregisterKeyboardShortcut();
   globalShortcut.unregisterAll();
   console.log(`[Keyboard] All shortcuts unregistered on app quit`);
+});
+
+// 应用退出时销毁托盘和小宠物窗口
+app.on('before-quit', () => {
+  // 停止摸鱼时间追踪并保存数据
+  stopMoyuTracking();
+  
+  if (tray) {
+    tray.destroy();
+    tray = null;
+  }
+  destroyPetWindow();
 });
 
 
@@ -1317,6 +1641,20 @@ ipcMain.handle('get-all-config', () => {
   return loadConfig();
 });
 
+// IPC 处理：获取摸鱼数据
+ipcMain.handle('get-moyu-data', () => {
+  if (!moyuData) {
+    loadMoyuData();
+  }
+  const currentDate = getCurrentDateString();
+  return {
+    dailyTime: Math.floor(moyuData.dailyTime[currentDate] || 0),
+    totalTime: Math.floor(moyuData.totalTime || 0),
+    growthValue: Math.floor(moyuData.growthValue || 0),
+    level: moyuData.level || 1
+  };
+});
+
 ipcMain.handle('get-config', (event, key) => {
   return getConfig(key);
 });
@@ -1398,6 +1736,17 @@ ipcMain.handle('set-config', (event, key, value) => {
     
     registerKeyboardShortcut();
     console.log(`[Config] Keyboard shortcut updated, re-registered`);
+  }
+
+  // 桌面小宠物开关
+  if (key === 'enableDesktopPet') {
+    ENABLE_DESKTOP_PET = value === true;
+    if (ENABLE_DESKTOP_PET) {
+      createPetWindow();
+    } else {
+      destroyPetWindow();
+    }
+    console.log(`[Config] Desktop pet updated: ${ENABLE_DESKTOP_PET}`);
   }
   
   // 如果修改了鼠标进入/离开解锁配置，立即重新加载

@@ -240,6 +240,24 @@
           </div>
         </div>
 
+        <!-- 桌面小宠物（小鱼） -->
+        <div class="setting-item">
+          <div class="setting-label">
+            <span class="setting-label-text">
+              桌面小宠物
+              <span 
+                class="setting-help" 
+                title="在桌面上显示一个可爱的悬浮小鱼动画，始终置顶陪你摸鱼"
+              >?</span>
+            </span>
+            <div 
+              class="toggle-switch" 
+              :class="{ active: config.enableDesktopPet }"
+              @click="toggleDesktopPet"
+            ></div>
+          </div>
+        </div>
+
         <!-- 配置文件信息 -->
         <!-- <div class="setting-item">
           <div class="setting-label">
@@ -295,6 +313,7 @@ const config = ref({
   mouseEnterLeaveThreshold: 5,
   autoPauseOnHide: true,
   showWindowOnStartup: true,
+  enableDesktopPet: false,
   keyboardModeEnabled: false,
   keyboardShortcut: 'CommandOrControl+Shift+M'
 });
@@ -344,6 +363,7 @@ const loadConfig = async () => {
       mouseEnterLeaveThreshold: allConfig.mouseEnterLeaveThreshold || 5,
       autoPauseOnHide: allConfig.autoPauseOnHide !== false, // 默认开启
       showWindowOnStartup: allConfig.showWindowOnStartup !== false, // 默认开启
+      enableDesktopPet: allConfig.enableDesktopPet === true,
       keyboardModeEnabled: allConfig.keyboardModeEnabled === true, // 默认关闭
       keyboardShortcut: allConfig.keyboardShortcut || 'CommandOrControl+Shift+M'
     };
@@ -391,6 +411,13 @@ const toggleKeyboardMode = async () => {
   if (newValue) {
     alert('键盘模式已启用！\n\n提示：如果鼠标模式正在运行，可能需要重启应用才能完全切换到键盘模式。');
   }
+};
+
+// 切换桌面小宠物
+const toggleDesktopPet = async () => {
+  const newValue = !config.value.enableDesktopPet;
+  config.value.enableDesktopPet = newValue;
+  await updateConfig('enableDesktopPet', newValue);
 };
 
 // 捕获快捷键组合
