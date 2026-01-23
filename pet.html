@@ -25,10 +25,10 @@
 
       /* 数据展示区域 */
       .data-panel {
-        position: absolute;
+        position: fixed;
         top: 8px;
-        left: 8px;
         right: 8px;
+        width: 200px;
         background: rgba(255, 255, 255, 0.9);
         border-radius: 8px;
         padding: 8px 12px;
@@ -231,22 +231,23 @@
         }
 
         init() {
-          // 获取窗口尺寸（pet窗口的实际大小）
-          const windowWidth = window.innerWidth || 220;
-          const windowHeight = window.innerHeight || 280;
+          // 获取整个屏幕尺寸（全屏游动）
+          const screenWidth = window.screen.width;
+          const screenHeight = window.screen.height;
           
-          // 初始位置（窗口内随机位置，避开数据面板区域）
-          this.x = Math.random() * (windowWidth - 180) + 20;
-          this.y = Math.random() * (windowHeight - 180) + 100; // 避开顶部数据面板
+          // 初始位置（屏幕内随机位置）
+          const petSize = parseInt(this.petWrapper.style.width) || 80;
+          this.x = Math.random() * (screenWidth - petSize);
+          this.y = Math.random() * (screenHeight - petSize);
           
           // 设置初始目标位置
           this.targetX = this.x;
           this.targetY = this.y;
           
-          // 监听鼠标移动（相对于窗口）
+          // 监听鼠标移动（全局屏幕坐标）
           document.addEventListener('mousemove', (e) => {
-            this.mouseX = e.clientX;
-            this.mouseY = e.clientY;
+            this.mouseX = e.screenX;
+            this.mouseY = e.screenY;
           });
           
           // 开始游动
@@ -263,7 +264,8 @@
           if (Math.random() < 0.5) { // 50%概率跟随鼠标
             this.isFollowingMouse = true;
             const petSize = parseInt(this.petWrapper.style.width) || 80;
-            this.targetX = this.mouseX - petSize / 2; // 调整到鱼儿中心
+            // 使用全局屏幕坐标
+            this.targetX = this.mouseX - petSize / 2;
             this.targetY = this.mouseY - petSize / 2;
             
             // 5秒后停止跟随，恢复随机游动
@@ -280,38 +282,37 @@
         setRandomTarget() {
           if (this.isFollowingMouse) return;
           
-          const windowWidth = window.innerWidth || 220;
-          const windowHeight = window.innerHeight || 280;
+          // 使用整个屏幕尺寸
+          const screenWidth = window.screen.width;
+          const screenHeight = window.screen.height;
           const petSize = parseInt(this.petWrapper.style.width) || 80;
           
-          // 随机目标位置（考虑边界，避开顶部数据面板区域）
-          const minY = 100; // 数据面板下方
-          this.targetX = this.boundaryPadding + Math.random() * (windowWidth - petSize - this.boundaryPadding * 2);
-          this.targetY = minY + Math.random() * (windowHeight - minY - petSize - this.boundaryPadding);
+          // 随机目标位置（整个屏幕范围内）
+          this.targetX = this.boundaryPadding + Math.random() * (screenWidth - petSize - this.boundaryPadding * 2);
+          this.targetY = this.boundaryPadding + Math.random() * (screenHeight - petSize - this.boundaryPadding * 2);
         }
 
         // 边界检测和修正
         checkBoundaries() {
-          const windowWidth = window.innerWidth || 220;
-          const windowHeight = window.innerHeight || 280;
+          const screenWidth = window.screen.width;
+          const screenHeight = window.screen.height;
           const petSize = parseInt(this.petWrapper.style.width) || 80;
-          const minY = 100; // 数据面板下方
           
           if (this.x < this.boundaryPadding) {
             this.x = this.boundaryPadding;
-            this.targetX = this.x + Math.random() * 100;
+            this.targetX = this.x + Math.random() * 200;
           }
-          if (this.x > windowWidth - petSize - this.boundaryPadding) {
-            this.x = windowWidth - petSize - this.boundaryPadding;
-            this.targetX = this.x - Math.random() * 100;
+          if (this.x > screenWidth - petSize - this.boundaryPadding) {
+            this.x = screenWidth - petSize - this.boundaryPadding;
+            this.targetX = this.x - Math.random() * 200;
           }
-          if (this.y < minY) {
-            this.y = minY;
-            this.targetY = this.y + Math.random() * 100;
+          if (this.y < this.boundaryPadding) {
+            this.y = this.boundaryPadding;
+            this.targetY = this.y + Math.random() * 200;
           }
-          if (this.y > windowHeight - petSize - this.boundaryPadding) {
-            this.y = windowHeight - petSize - this.boundaryPadding;
-            this.targetY = this.y - Math.random() * 100;
+          if (this.y > screenHeight - petSize - this.boundaryPadding) {
+            this.y = screenHeight - petSize - this.boundaryPadding;
+            this.targetY = this.y - Math.random() * 200;
           }
         }
 

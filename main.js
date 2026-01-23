@@ -725,6 +725,12 @@ function createWindow() {
 
     // 停止摸鱼时间追踪
     stopMoyuTracking();
+    
+    // 隐藏pet窗口
+    if (petWindow && petWindow.isVisible()) {
+      petWindow.hide();
+      console.log('[Pet] Pet window hidden (main window hidden)');
+    }
 
     // 通知渲染进程应用已隐藏（用于本地小说等模块暂停自动行为）
     try {
@@ -741,6 +747,18 @@ function createWindow() {
 
     // 开始摸鱼时间追踪
     startMoyuTracking();
+    
+    // 显示pet窗口（如果启用且存在）
+    if (ENABLE_DESKTOP_PET) {
+      if (petWindow) {
+        if (!petWindow.isVisible()) {
+          petWindow.show();
+          console.log('[Pet] Pet window shown (main window shown)');
+        }
+      } else {
+        createPetWindow();
+      }
+    }
 
     // 通知渲染进程应用已显示
     try {
@@ -1179,26 +1197,22 @@ function createPetWindow() {
     }
     const display = screen.getPrimaryDisplay();
     const { width, height } = display.workAreaSize || display.size;
-    // 窗口大小：需要容纳数据面板（约200px宽）和最大鱼儿（180px）
-    const windowWidth = 220;
-    const windowHeight = 280; // 数据面板高度 + 最大鱼儿高度
-    const x = width - windowWidth - 20;
-    const y = height - windowHeight - 20;
-
+    
+    // 全屏窗口，让鱼儿在整个屏幕游动
     petWindow = new BrowserWindow({
-      width: windowWidth,
-      height: windowHeight,
-      x,
-      y,
+      width: width,
+      height: height,
+      x: 0,
+      y: 0,
       frame: false,
       transparent: true,
       resizable: false,
-      movable: true,
+      movable: false,
       hasShadow: false,
       alwaysOnTop: true,
       skipTaskbar: true,
       focusable: false,
-      roundedCorners: true,
+      roundedCorners: false,
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
         nodeIntegration: false,
@@ -1402,6 +1416,11 @@ app.on('will-quit', () => {
 app.on('before-quit', () => {
   // 停止摸鱼时间追踪并保存数据
   stopMoyuTracking();
+  
+  // 确保数据已保存
+  if (moyuData) {
+    saveMoyuData();
+  }
   
   if (tray) {
     tray.destroy();

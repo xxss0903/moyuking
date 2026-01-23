@@ -11,6 +11,15 @@
       </span>
     </div>
     <div id="toolbar-right">
+      <div 
+        class="toolbar-btn" 
+        :class="{ active: isDesktopPetEnabled }" 
+        id="moyu-btn" 
+        :title="isDesktopPetEnabled ? '关闭摸鱼小鱼' : '开启摸鱼小鱼'" 
+        @click="toggleDesktopPet"
+      >
+        🐟
+      </div>
       <div class="toolbar-btn" id="settings-btn" title="系统设置" @click="showSettings">⚙</div>
       <div 
         class="toolbar-btn" 
@@ -30,11 +39,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useElectronAPI } from '../composables/useElectronAPI';
 
 const electronAPI = useElectronAPI();
 const isPinned = ref(false);
+const isDesktopPetEnabled = ref(false);
+let configCheckInterval = null;
 
 const emit = defineEmits(['show-module-panel', 'show-settings']);
 
@@ -88,6 +99,27 @@ const loadPinState = async () => {
   }
 };
 
+const loadDesktopPetState = async () => {
+  if (!electronAPI) return;
+  try {
+    const config = await electronAPI.getConfig('enableDesktopPet');
+    isDesktopPetEnabled.value = config === true;
+  } catch (error) {
+    console.error('Failed to load desktop pet state:', error);
+  }
+};
+
+const toggleDesktopPet = async () => {
+  if (!electronAPI) return;
+  try {
+    const newState = !isDesktopPetEnabled.value;
+    await electronAPI.setConfig('enableDesktopPet', newState);
+    isDesktopPetEnabled.value = newState;
+  } catch (error) {
+    console.error('Failed to toggle desktop pet:', error);
+  }
+};
+
 defineProps({
   currentModuleName: {
     type: String,
@@ -97,6 +129,19 @@ defineProps({
 
 onMounted(() => {
   loadPinState();
+  loadDesktopPetState();
+  
+  // 定期检查配置变化（每2秒检查一次，确保与设置面板同步）
+  configCheckInterval = setInterval(() => {
+    loadDesktopPetState();
+  }, 2000);
+});
+
+onUnmounted(() => {
+  if (configCheckInterval) {
+    clearInterval(configCheckInterval);
+    configCheckInterval = null;
+  }
 });
 </script>
 
@@ -166,6 +211,15 @@ onMounted(() => {
 
 .toolbar-btn.pinned:hover {
   background: rgba(255, 193, 7, 0.5);
+}
+
+.toolbar-btn.active {
+  background: rgba(24, 144, 255, 0.3);
+  color: #1890ff;
+}
+
+.toolbar-btn.active:hover {
+  background: rgba(24, 144, 255, 0.5);
 }
 </style>
 
