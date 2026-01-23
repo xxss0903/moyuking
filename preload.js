@@ -80,7 +80,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openLocalNovelFile: (options) => ipcRenderer.invoke('open-local-novel-file', options),
   
   // 摸鱼系统：获取摸鱼数据
-  getMoyuData: () => ipcRenderer.invoke('get-moyu-data')
+  getMoyuData: () => ipcRenderer.invoke('get-moyu-data'),
+  
+  // 设置窗口忽略鼠标事件（用于pet窗口点击穿透）
+  setIgnoreMouseEvents: (ignore, options) => ipcRenderer.invoke('set-ignore-mouse-events', ignore, options)
 });
 
 // 全局事件：转发主进程的窗口状态事件到渲染进程（作为自定义事件）

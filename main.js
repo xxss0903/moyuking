@@ -1222,6 +1222,10 @@ function createPetWindow() {
     });
 
     petWindow.setMenuBarVisibility(false);
+    
+    // 设置窗口忽略鼠标事件，允许点击穿透到桌面（除了可交互元素）
+    // forward: true 表示将鼠标事件转发到桌面应用
+    petWindow.setIgnoreMouseEvents(true, { forward: true });
 
     const petHtmlPath = path.join(__dirname, 'pet.html');
     petWindow.loadFile(petHtmlPath).catch(err => {
@@ -1232,7 +1236,7 @@ function createPetWindow() {
       petWindow = null;
     });
 
-    console.log('[Pet] Desktop pet window created at', x, y);
+    console.log('[Pet] Desktop pet window created (fullscreen, click-through enabled)');
   } catch (e) {
     console.error('[Pet] Failed to create desktop pet window:', e);
   }
@@ -1672,6 +1676,21 @@ ipcMain.handle('get-moyu-data', () => {
     growthValue: Math.floor(moyuData.growthValue || 0),
     level: moyuData.level || 1
   };
+});
+
+// IPC 处理：设置窗口忽略鼠标事件（用于pet窗口点击穿透）
+ipcMain.handle('set-ignore-mouse-events', (event, ignore, options) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (window && window === petWindow) {
+    try {
+      window.setIgnoreMouseEvents(ignore, options || { forward: true });
+      return true;
+    } catch (e) {
+      console.error('[Pet] Failed to set ignore mouse events:', e);
+      return false;
+    }
+  }
+  return false;
 });
 
 ipcMain.handle('get-config', (event, key) => {

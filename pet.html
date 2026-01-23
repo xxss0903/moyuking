@@ -374,9 +374,34 @@
           initData();
         }, 1000);
         
+        // 设置可交互区域的鼠标事件处理
+        setupInteractiveAreas();
+        
         // 初始化游动系统
         new SwimmingSystem();
       });
+
+      // 设置可交互区域（数据面板和鱼儿）
+      function setupInteractiveAreas() {
+        if (!window.electronAPI || !window.electronAPI.setIgnoreMouseEvents) {
+          console.warn('[Pet] setIgnoreMouseEvents API not available');
+          return;
+        }
+
+        const interactiveElements = document.querySelectorAll('.data-panel, .pet-wrapper');
+        
+        interactiveElements.forEach(el => {
+          el.addEventListener('mouseenter', () => {
+            // 当鼠标进入可交互区域时，临时禁用忽略鼠标事件
+            window.electronAPI.setIgnoreMouseEvents(false, { forward: true });
+          });
+          
+          el.addEventListener('mouseleave', () => {
+            // 当鼠标离开可交互区域时，重新启用忽略鼠标事件
+            window.electronAPI.setIgnoreMouseEvents(true, { forward: true });
+          });
+        });
+      }
     </script>
   </body>
 </html>
