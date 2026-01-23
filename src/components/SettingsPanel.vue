@@ -226,15 +226,17 @@
               <input 
                 type="text" 
                 class="input-control" 
+                ref="shortcutInputRef"
                 v-model="config.keyboardShortcut"
-                placeholder="CommandOrControl+Shift+M"
+                placeholder="点击这里，然后按下快捷键组合"
+                @keydown.prevent="captureShortcut"
+                @focus="onShortcutInputFocus"
+                @blur="onShortcutInputBlur"
                 @change="updateKeyboardShortcut"
                 style="width: 200px;"
               >
+              <span style="color: #999; font-size: 11px; margin-left: 8px;">点击输入框后按快捷键</span>
             </div>
-          </div>
-          <div class="setting-note" style="margin-top: 4px; font-size: 11px; color: #999;">
-            提示：使用 + 连接按键，支持 CommandOrControl（Mac 为 Cmd，Windows 为 Ctrl）、Alt、Shift 和字母/数字键
           </div>
         </div>
 
@@ -261,7 +263,10 @@
           </div>
         </div> -->
       </div>
-      <button id="settings-close" @click="close">确定</button>
+      <div style="display: flex; gap: 10px; justify-content: flex-end; padding-top: 10px; border-top: 1px solid #eee;">
+        <button id="settings-restart" @click="restartApp">重启应用</button>
+        <button id="settings-close" @click="close">确定</button>
+      </div>
     </div>
   </div>
 </template>
@@ -299,6 +304,17 @@ const thresholdChanged = ref(false); // 跟踪是否修改了阈值
 const initialThreshold = ref(5); // 记录初始阈值
 const configFilePath = ref(''); // 配置文件路径
 const viewingConfig = ref(false); // 是否正在查看配置
+const shortcutInputRef = ref(null); // 快捷键输入框引用
+const isCapturingShortcut = ref(false); // 是否正在捕获快捷键
+
+// 重启应用
+const restartApp = () => {
+  if (electronAPI && electronAPI.restartApp) {
+    if (confirm('确定要重启应用吗？')) {
+      electronAPI.restartApp();
+    }
+  }
+};
 
 const close = async () => {
   // 如果修改了阈值，提示重启
@@ -374,6 +390,127 @@ const toggleKeyboardMode = async () => {
   // 提示用户需要重启应用才能完全生效
   if (newValue) {
     alert('键盘模式已启用！\n\n提示：如果鼠标模式正在运行，可能需要重启应用才能完全切换到键盘模式。');
+  }
+};
+
+// 捕获快捷键组合
+const captureShortcut = (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  
+  const parts = [];
+  
+  // 检查修饰键（按 Electron 格式）
+  if (e.ctrlKey || e.metaKey) {
+    parts.push('CommandOrControl');
+  }
+  if (e.altKey) {
+    parts.push('Alt');
+  }
+  if (e.shiftKey) {
+    parts.push('Shift');
+  }
+  
+  // 获取主键
+  let key = '';
+  
+  // 忽略单独的修饰键按下
+  if (['Control', 'Meta', 'Alt', 'Shift'].includes(e.key)) {
+    return;
+  }
+  
+  if (e.key) {
+    // 处理特殊键
+    const keyMap = {
+      'Escape': 'Esc',
+      ' ': 'Space',
+      'ArrowUp': 'Up',
+      'ArrowDown': 'Down',
+      'ArrowLeft': 'Left',
+      'ArrowRight': 'Right',
+      'Enter': 'Return',
+      'Backspace': 'Backspace',
+      'Delete': 'Delete',
+      'Tab': 'Tab',
+      'Home': 'Home',
+      'End': 'End',
+      'PageUp': 'PageUp',
+      'PageDown': 'PageDown',
+      'Insert': 'Insert',
+      'Clear': 'Clear'
+    };
+    
+    if (keyMap[e.key]) {
+      key = keyMap[e.key];
+    } else if (e.key.startsWith('F') && /^F\d{1,2}$/.test(e.key)) {
+      // 功能键 F1-F24
+      key = e.key;
+    } else if (e.key.length === 1) {
+      // 字母或数字，转为大写
+      key = e.key.toUpperCase();
+    } else {
+      // 其他键，尝试使用原值
+      key = e.key;
+    }
+  } else if (e.code) {
+    // 如果 key 不可用，使用 code
+    if (e.code.startsWith('Key')) {
+      key = e.code.replace('Key', '');
+    } else if (e.code.startsWith('Digit')) {
+      key = e.code.replace('Digit', '');
+    } else if (e.code.startsWith('Numpad')) {
+      key = 'Num' + e.code.replace('Numpad', '');
+    } else if (/^F\d{1,2}$/.test(e.code)) {
+      key = e.code;
+    } else {
+      // 其他 code，尝试映射
+      const codeMap = {
+        'Space': 'Space',
+        'Enter': 'Return',
+        'Escape': 'Esc',
+        'ArrowUp': 'Up',
+        'ArrowDown': 'Down',
+        'ArrowLeft': 'Left',
+        'ArrowRight': 'Right'
+      };
+      key = codeMap[e.code] || e.code;
+    }
+  }
+  
+  // 如果只有修饰键没有主键，不更新
+  if (!key) {
+    return;
+  }
+  
+  // 确保主键不在 parts 中（避免重复）
+  if (!parts.includes(key)) {
+    parts.push(key);
+  }
+  
+  const shortcut = parts.join('+');
+  
+  if (shortcut) {
+    config.value.keyboardShortcut = shortcut;
+    // 自动保存
+    updateConfig('keyboardShortcut', shortcut).catch(err => {
+      console.error('Failed to save keyboard shortcut:', err);
+    });
+  }
+};
+
+// 快捷键输入框获得焦点
+const onShortcutInputFocus = () => {
+  isCapturingShortcut.value = true;
+  if (shortcutInputRef.value) {
+    shortcutInputRef.value.placeholder = '按下快捷键组合...';
+  }
+};
+
+// 快捷键输入框失去焦点
+const onShortcutInputBlur = () => {
+  isCapturingShortcut.value = false;
+  if (shortcutInputRef.value) {
+    shortcutInputRef.value.placeholder = 'CommandOrControl+Shift+M';
   }
 };
 
@@ -681,19 +818,33 @@ onMounted(() => {
 }
 
 #settings-close {
-  margin-top: 20px;
-  width: 100%;
-  padding: 10px;
+  padding: 10px 20px;
   background: #007bff;
   color: #fff;
   border: none;
   border-radius: 4px;
   font-size: 14px;
   cursor: pointer;
+  flex: 1;
 }
 
 #settings-close:hover {
   background: #0056b3;
+}
+
+#settings-restart {
+  padding: 10px 20px;
+  background: #ff9800;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  flex: 1;
+}
+
+#settings-restart:hover {
+  background: #f57c00;
 }
 
 .view-config-btn {
